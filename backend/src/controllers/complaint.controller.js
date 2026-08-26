@@ -38,7 +38,6 @@ const createComplaint = async (req, res) => {
       priority,
     } = req.body;
 
-    // Validate required fields
     if (
       !studentId ||
       !categoryId ||
@@ -53,7 +52,6 @@ const createComplaint = async (req, res) => {
       });
     }
 
-    // Check student
     const student = await prisma.student.findUnique({
       where: { id: studentId },
     });
@@ -65,7 +63,6 @@ const createComplaint = async (req, res) => {
       });
     }
 
-    // Check complaint category
     const category = await prisma.complaintCategory.findUnique({
       where: { id: categoryId },
     });
@@ -84,7 +81,6 @@ const createComplaint = async (req, res) => {
       });
     }
 
-    // Check room
     const room = await prisma.room.findUnique({
       where: { id: roomId },
     });
@@ -96,10 +92,8 @@ const createComplaint = async (req, res) => {
       });
     }
 
-    // Generate complaint number
     const complaintNo = await generateComplaintNumber();
 
-    // Create complaint
     const complaint = await prisma.complaint.create({
       data: {
         complaintNo,
@@ -315,6 +309,9 @@ const updateComplaintStatus = async (req, res) => {
     const { id } = req.params;
     const { status, remarks } = req.body;
 
+    const userId = req.user.userId;
+    const userRole = req.user.role;
+
     const validStatuses = [
       "OPEN",
       "ASSIGNED",
@@ -325,7 +322,6 @@ const updateComplaintStatus = async (req, res) => {
       "CANCELLED",
     ];
 
-    // Validate status
     if (!status) {
       return res.status(400).json({
         success: false,
@@ -340,7 +336,6 @@ const updateComplaintStatus = async (req, res) => {
       });
     }
 
-    // Find complaint
     const complaint = await prisma.complaint.findUnique({
       where: { id },
     });
@@ -349,6 +344,111 @@ const updateComplaintStatus = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Complaint not found",
+      });
+    }
+
+    // Prevent updating to same status
+    if (complaint.status === status) {
+      return res.status(400).json({
+        success: false,
+        message: `Complaint is already in ${status} status`,
+      });
+    }
+
+    /*
+      STATUS WORKFLOW
+
+      OPEN
+        ↓ Admin assigns
+      ASSIGNED
+        ↓ Maintenance Staff
+      IN_PROGRESS
+        ↓ Maintenance Staff
+      RESOLVED
+        ↓ Admin
+      CLOSED
+    */
+
+    // ============================
+    // MAINTENANCE STAFF PERMISSIONS
+    // ============================
+
+    if (userRole === "MAINTENANCE_STAFF") {
+      // Check whether complaint is assigned to this staff member
+      const assignment = await prisma.complaintAssignment.findFirst({
+        where: {
+          complaintId: id,
+          assignedTo: userId,
+          unassignedAt: null,
+        },
+      });
+
+      if (!assignment) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "You are not assigned to this complaint and cannot update its status",
+        });
+      }
+
+      // ASSIGNED -> IN_PROGRESS
+      if (
+        complaint.status === "ASSIGNED" &&
+        status === "IN_PROGRESS"
+      ) {
+        // Allowed
+      }
+
+      // IN_PROGRESS -> RESOLVED
+      else if (
+        complaint.status === "IN_PROGRESS" &&
+        status === "RESOLVED"
+      ) {
+        // Allowed
+      }
+
+      else {
+        return res.status(403).json({
+          success: false,
+          message: `Maintenance staff cannot change complaint from ${complaint.status} to ${status}`,
+        });
+      }
+    }
+
+    // ============================
+    // ADMIN PERMISSIONS
+    // ============================
+
+    else if (userRole === "ADMIN") {
+      const allowedTransitions = {
+        OPEN: ["ASSIGNED", "CANCELLED"],
+        ASSIGNED: ["CANCELLED"],
+        IN_PROGRESS: ["RESOLVED", "CANCELLED"],
+        RESOLVED: ["CLOSED", "REOPENED"],
+        CLOSED: ["REOPENED"],
+        REOPENED: ["IN_PROGRESS", "CANCELLED"],
+        CANCELLED: [],
+      };
+
+      if (
+        !allowedTransitions[complaint.status] ||
+        !allowedTransitions[complaint.status].includes(status)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid status transition from ${complaint.status} to ${status}`,
+        });
+      }
+    }
+
+    // ============================
+    // OTHER USERS
+    // ============================
+
+    else {
+      return res.status(403).json({
+        success: false,
+        message: "You do not have permission to update complaint status",
       });
     }
 
@@ -370,7 +470,7 @@ const updateComplaintStatus = async (req, res) => {
           complaintId: id,
           oldStatus: complaint.status,
           newStatus: status,
-          changedBy: req.user.userId,
+          changedBy: userId,
           remarks: remarks || null,
         },
       });
@@ -399,7 +499,14 @@ const assignComplaint = async (req, res) => {
     const { id } = req.params;
     const { assignedTo } = req.body;
 
-    // Validate assignedTo
+    // Only admin can assign complaints
+    if (req.user.role !== "ADMIN") {
+      return res.status(403).json({
+        success: false,
+        message: "Only an admin can assign complaints",
+      });
+    }
+
     if (!assignedTo) {
       return res.status(400).json({
         success: false,
@@ -407,7 +514,6 @@ const assignComplaint = async (req, res) => {
       });
     }
 
-    // Check complaint
     const complaint = await prisma.complaint.findUnique({
       where: { id },
     });
@@ -419,7 +525,17 @@ const assignComplaint = async (req, res) => {
       });
     }
 
-    // Check staff/user
+    // Cannot assign closed or cancelled complaint
+    if (
+      complaint.status === "CLOSED" ||
+      complaint.status === "CANCELLED"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot assign a ${complaint.status} complaint`,
+      });
+    }
+
     const staff = await prisma.user.findUnique({
       where: { id: assignedTo },
     });
@@ -431,9 +547,27 @@ const assignComplaint = async (req, res) => {
       });
     }
 
-    // Assign complaint and update status
+    // Only maintenance staff can be assigned
+    if (staff.role !== "MAINTENANCE_STAFF") {
+      return res.status(400).json({
+        success: false,
+        message: "Complaint can only be assigned to maintenance staff",
+      });
+    }
+
     const result = await prisma.$transaction(async (tx) => {
-      // Create assignment
+      // Unassign any existing active assignment
+      await tx.complaintAssignment.updateMany({
+        where: {
+          complaintId: id,
+          unassignedAt: null,
+        },
+        data: {
+          unassignedAt: new Date(),
+        },
+      });
+
+      // Create new assignment
       const assignment = await tx.complaintAssignment.create({
         data: {
           complaintId: id,
