@@ -120,7 +120,10 @@ export default function Maintenance() {
 
         let endpoint = "";
 
-        // ADMIN SEES EVERYTHING
+        // ==========================================
+        // ADMIN SEES ALL COMPLAINTS
+        // ==========================================
+
         if (
           user.role === "ADMIN"
         ) {
@@ -128,8 +131,10 @@ export default function Maintenance() {
             `${API_URL}/api/complaints`;
         }
 
-        // MAINTENANCE STAFF
-        // SEES ONLY ASSIGNED COMPLAINTS
+        // ==========================================
+        // MAINTENANCE STAFF SEES ONLY ASSIGNED
+        // ==========================================
+
         else if (
           user.role ===
           "MAINTENANCE_STAFF"
@@ -211,6 +216,10 @@ export default function Maintenance() {
     }, [])
   );
 
+  // ==========================================
+  // REFRESH
+  // ==========================================
+
   const handleRefresh = () => {
     setRefreshing(true);
 
@@ -286,25 +295,39 @@ export default function Maintenance() {
         />
       }
     >
-      {/* NAVIGATION */}
+
+      {/* ==========================================
+          NAVIGATION
+      ========================================== */}
 
       <TouchableOpacity
         style={styles.backButton}
         onPress={() => {
           if (userRole === "ADMIN") {
             router.replace("/admin");
-          } else {
-            router.replace("/maintenance");
+          } else if (
+            userRole ===
+            "MAINTENANCE_STAFF"
+          ) {
+            router.replace(
+              "/maintenance-home"
+            );
           }
         }}
       >
-        <Text style={styles.backButtonText}>
+        <Text
+          style={
+            styles.backButtonText
+          }
+        >
           ← Back to Home
         </Text>
       </TouchableOpacity>
 
 
-      {/* HEADER */}
+      {/* ==========================================
+          HEADER
+      ========================================== */}
 
       <View
         style={styles.header}
@@ -335,7 +358,10 @@ export default function Maintenance() {
         </TouchableOpacity>
       </View>
 
-      {/* EMPTY */}
+
+      {/* ==========================================
+          EMPTY STATE
+      ========================================== */}
 
       {complaints.length === 0 && (
         <View
@@ -355,10 +381,14 @@ export default function Maintenance() {
         </View>
       )}
 
-      {/* COMPLAINTS */}
+
+      {/* ==========================================
+          COMPLAINTS
+      ========================================== */}
 
       {complaints.map(
         (complaint) => {
+
           const assignedStaff =
             complaint.assignments?.[0]
               ?.assignedStaff;
@@ -381,11 +411,15 @@ export default function Maintenance() {
                 })
               }
             >
+
+              {/* TOP ROW */}
+
               <View
                 style={
                   styles.topRow
                 }
               >
+
                 <Text
                   style={
                     styles.complaintTitle
@@ -416,7 +450,11 @@ export default function Maintenance() {
                     )}
                   </Text>
                 </View>
+
               </View>
+
+
+              {/* DESCRIPTION */}
 
               <Text
                 style={
@@ -428,6 +466,9 @@ export default function Maintenance() {
                   complaint.description
                 }
               </Text>
+
+
+              {/* COMPLAINT NUMBER */}
 
               <Text
                 style={
@@ -447,6 +488,9 @@ export default function Maintenance() {
                 }
               </Text>
 
+
+              {/* PRIORITY */}
+
               <Text
                 style={
                   styles.info
@@ -464,6 +508,9 @@ export default function Maintenance() {
                 }
               </Text>
 
+
+              {/* ROOM */}
+
               <Text
                 style={
                   styles.info
@@ -480,6 +527,9 @@ export default function Maintenance() {
                   ?.roomNumber ||
                   "Not available"}
               </Text>
+
+
+              {/* ASSIGNED STAFF */}
 
               {assignedStaff && (
                 <Text
@@ -503,6 +553,9 @@ export default function Maintenance() {
                 </Text>
               )}
 
+
+              {/* ACTION */}
+
               <Text
                 style={
                   styles.manageText
@@ -512,16 +565,24 @@ export default function Maintenance() {
                   ? "Tap to assign →"
                   : "Tap to manage →"}
               </Text>
+
             </TouchableOpacity>
           );
         }
       )}
+
     </ScrollView>
   );
 }
 
+
+// ==========================================
+// STYLES
+// ==========================================
+
 const styles =
   StyleSheet.create({
+
     container: {
       flex: 1,
       backgroundColor:
@@ -549,6 +610,11 @@ const styles =
       color: "#64748B",
     },
 
+
+    // ==========================================
+    // BACK BUTTON
+    // ==========================================
+
     backButton: {
       alignSelf: "flex-start",
       backgroundColor: "#E2E8F0",
@@ -564,6 +630,11 @@ const styles =
       fontWeight: "700",
     },
 
+
+    // ==========================================
+    // HEADER
+    // ==========================================
+
     header: {
       flexDirection: "row",
       justifyContent:
@@ -574,9 +645,11 @@ const styles =
     },
 
     title: {
+      flex: 1,
       fontSize: 26,
       fontWeight: "bold",
       color: "#1E293B",
+      marginRight: 10,
     },
 
     refreshButton: {
@@ -591,6 +664,11 @@ const styles =
       color: "#FFFFFF",
       fontWeight: "bold",
     },
+
+
+    // ==========================================
+    // COMPLAINT CARD
+    // ==========================================
 
     complaintCard: {
       backgroundColor:
@@ -658,6 +736,11 @@ const styles =
       marginTop: 15,
     },
 
+
+    // ==========================================
+    // EMPTY STATE
+    // ==========================================
+
     emptyContainer: {
       backgroundColor:
         "#FFFFFF",
@@ -672,4 +755,5 @@ const styles =
       fontSize: 16,
       textAlign: "center",
     },
+
   });

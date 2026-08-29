@@ -42,17 +42,25 @@ export default function LoginScreen() {
       await AsyncStorage.setItem("token", token);
       await AsyncStorage.setItem("user", JSON.stringify(user));
 
+      // ==========================================
+      // ROLE-BASED NAVIGATION
+      // ==========================================
+
       if (user.role === "ADMIN") {
         router.replace("/admin");
       } else if (user.role === "STUDENT") {
         router.replace("/student");
       } else if (user.role === "MAINTENANCE_STAFF") {
-        router.replace("/maintenance");
+        // Maintenance staff now goes to their
+        // own home/dashboard first.
+        router.replace("/maintenance-home");
       } else {
         Alert.alert("Error", "Unknown user role.");
       }
     } catch (error: any) {
-      console.log(error?.response?.data || error);
+      console.log(
+        error?.response?.data || error
+      );
 
       Alert.alert(
         "Login Failed",
@@ -67,16 +75,26 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={
+        Platform.OS === "ios"
+          ? "padding"
+          : "height"
+      }
     >
       <View style={styles.card}>
-        <Text style={styles.title}>Hostel Maintenance</Text>
+        <Text style={styles.title}>
+          Hostel Maintenance
+        </Text>
 
         <Text style={styles.subtitle}>
           Sign in to manage hostel maintenance
         </Text>
 
-        <Text style={styles.label}>Email Address</Text>
+        {/* EMAIL */}
+
+        <Text style={styles.label}>
+          Email Address
+        </Text>
 
         <TextInput
           style={styles.input}
@@ -87,7 +105,11 @@ export default function LoginScreen() {
           onChangeText={setEmail}
         />
 
-        <Text style={styles.label}>Password</Text>
+        {/* PASSWORD */}
+
+        <Text style={styles.label}>
+          Password
+        </Text>
 
         <TextInput
           style={styles.input}
@@ -97,15 +119,23 @@ export default function LoginScreen() {
           onChangeText={setPassword}
         />
 
+        {/* LOGIN BUTTON */}
+
         <TouchableOpacity
           style={styles.loginButton}
           onPress={handleLogin}
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#ffffff" />
+            <ActivityIndicator
+              color="#ffffff"
+            />
           ) : (
-            <Text style={styles.loginButtonText}>Login</Text>
+            <Text
+              style={styles.loginButtonText}
+            >
+              Login
+            </Text>
           )}
         </TouchableOpacity>
       </View>

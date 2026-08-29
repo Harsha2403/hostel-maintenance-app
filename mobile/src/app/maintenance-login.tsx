@@ -34,7 +34,6 @@ export default function MaintenanceLogin() {
     try {
       setLoading(true);
 
-      // Clear previous user's login
       await AsyncStorage.removeItem("token");
       await AsyncStorage.removeItem("user");
 
@@ -48,34 +47,21 @@ export default function MaintenanceLogin() {
 
       const { token, user } = response.data;
 
-      console.log(
-        "Maintenance login user:",
-        user
-      );
-
-      // Only maintenance staff can log in here
       if (user.role !== "MAINTENANCE_STAFF") {
         Alert.alert(
           "Access Denied",
           "This login page is only for maintenance staff."
         );
-
         return;
       }
 
-      await AsyncStorage.setItem(
-        "token",
-        token
-      );
-
+      await AsyncStorage.setItem("token", token);
       await AsyncStorage.setItem(
         "user",
         JSON.stringify(user)
       );
 
-      // Go to maintenance complaints
-      router.replace("/maintenance");
-
+      router.replace("/maintenance-home");
     } catch (error: any) {
       console.log(
         "Maintenance login error:",
@@ -107,7 +93,7 @@ export default function MaintenanceLogin() {
         </Text>
 
         <Text style={styles.subtitle}>
-          Sign in to view your assigned complaints
+          Sign in to access your maintenance dashboard
         </Text>
 
         <Text style={styles.label}>
@@ -117,6 +103,7 @@ export default function MaintenanceLogin() {
         <TextInput
           style={styles.input}
           placeholder="Enter your email"
+          placeholderTextColor="#94A3B8"
           autoCapitalize="none"
           keyboardType="email-address"
           value={email}
@@ -130,6 +117,7 @@ export default function MaintenanceLogin() {
         <TextInput
           style={styles.input}
           placeholder="Enter your password"
+          placeholderTextColor="#94A3B8"
           secureTextEntry
           value={password}
           onChangeText={setPassword}
@@ -154,9 +142,7 @@ export default function MaintenanceLogin() {
 
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() =>
-            router.replace("/login")
-          }
+          onPress={() => router.replace("/login")}
         >
           <Text style={styles.backButtonText}>
             Back to Main Login
@@ -194,32 +180,34 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: "#64748B",
     marginBottom: 30,
+    lineHeight: 21,
   },
 
   label: {
     fontSize: 14,
     fontWeight: "600",
     color: "#334155",
-    marginBottom: 8,
-    marginTop: 10,
+    marginBottom: 7,
+    marginTop: 12,
   },
 
   input: {
-    height: 52,
     borderWidth: 1,
     borderColor: "#CBD5E1",
     borderRadius: 10,
-    paddingHorizontal: 15,
-    fontSize: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    fontSize: 15,
+    color: "#1E293B",
+    backgroundColor: "#FFFFFF",
   },
 
   loginButton: {
-    height: 52,
     backgroundColor: "#2563EB",
     borderRadius: 10,
-    justifyContent: "center",
+    paddingVertical: 15,
     alignItems: "center",
-    marginTop: 30,
+    marginTop: 22,
   },
 
   disabledButton: {
@@ -234,11 +222,12 @@ const styles = StyleSheet.create({
 
   backButton: {
     alignItems: "center",
-    marginTop: 20,
+    marginTop: 18,
   },
 
   backButtonText: {
     color: "#2563EB",
+    fontSize: 15,
     fontWeight: "600",
   },
 });
