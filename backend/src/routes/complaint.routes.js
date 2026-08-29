@@ -1,8 +1,12 @@
 const express = require("express");
 
+const router = express.Router();
+
 const {
   createComplaint,
   getComplaints,
+  getMyComplaints,
+  getMyAssignedComplaints,
   getComplaintById,
   updateComplaintStatus,
   assignComplaint,
@@ -12,31 +16,83 @@ const {
   authenticateToken,
 } = require("../middleware/auth.middleware");
 
-const router = express.Router();
 
-// Create complaint
-router.post("/", authenticateToken, createComplaint);
+// ==========================================
+// STUDENT - CREATE COMPLAINT
+// ==========================================
 
-// Get all complaints
-router.get("/", authenticateToken, getComplaints);
+router.post(
+  "/",
+  authenticateToken,
+  createComplaint
+);
 
-// Assign complaint
-router.put("/:id/assign", authenticateToken, assignComplaint);
 
-// Update complaint status
-router.put("/:id/status", authenticateToken, updateComplaintStatus);
+// ==========================================
+// STUDENT - GET MY OWN COMPLAINTS
+// ==========================================
 
-// Get complaint by ID
-router.get("/:id", authenticateToken, getComplaintById);
+router.get(
+  "/my-complaints",
+  authenticateToken,
+  getMyComplaints
+);
 
-// Update complaint status
+
+// ==========================================
+// MAINTENANCE STAFF - GET ASSIGNED COMPLAINTS
+// ==========================================
+
+router.get(
+  "/my-assigned",
+  authenticateToken,
+  getMyAssignedComplaints
+);
+
+
+// ==========================================
+// ADMIN - GET ALL COMPLAINTS
+// ==========================================
+
+router.get(
+  "/",
+  authenticateToken,
+  getComplaints
+);
+
+
+// ==========================================
+// ADMIN - ASSIGN COMPLAINT
+// ==========================================
+
+router.post(
+  "/:id/assign",
+  authenticateToken,
+  assignComplaint
+);
+
+
+// ==========================================
+// MAINTENANCE STAFF - UPDATE STATUS
+// ==========================================
+
 router.put(
   "/:id/status",
   authenticateToken,
   updateComplaintStatus
 );
 
-// Assign complaint
-router.post("/:id/assign", authenticateToken, assignComplaint);
+
+// ==========================================
+// GET SINGLE COMPLAINT
+// KEEP THIS LAST
+// ==========================================
+
+router.get(
+  "/:id",
+  authenticateToken,
+  getComplaintById
+);
+
 
 module.exports = router;

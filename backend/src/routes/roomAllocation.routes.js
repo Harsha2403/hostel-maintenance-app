@@ -5,6 +5,7 @@ const {
   getRoomAllocations,
   getRoomAllocationById,
   vacateRoom,
+  activateRoomAllocation,
 } = require("../controllers/roomAllocation.controller");
 
 const {
@@ -42,6 +43,14 @@ router.put(
   authenticateToken,
   authorizeRoles("ADMIN", "WARDEN"),
   vacateRoom
+);
+
+// Activate a room allocation - Admin and Warden
+router.put(
+  "/:id/activate",
+  authenticateToken,
+  authorizeRoles("ADMIN", "WARDEN"),
+  activateRoomAllocation
 );
 
 module.exports = router;

@@ -2,7 +2,9 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const prisma = require("../config/prisma");
 
+// ==========================================
 // Create Maintenance Staff
+// ==========================================
 const createMaintenanceStaff = async (req, res) => {
   try {
     const {
@@ -77,7 +79,51 @@ const createMaintenanceStaff = async (req, res) => {
 };
 
 
+// ==========================================
+// Get All Maintenance Staff
+// ==========================================
+const getMaintenanceStaff = async (req, res) => {
+  try {
+    const staff = await prisma.user.findMany({
+      where: {
+        role: "MAINTENANCE_STAFF",
+        isActive: true,
+      },
+
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+      },
+
+      orderBy: {
+        firstName: "asc",
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: staff,
+    });
+  } catch (error) {
+    console.error("Get maintenance staff error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch maintenance staff",
+    });
+  }
+};
+
+
+// ==========================================
 // Login
+// ==========================================
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -158,4 +204,5 @@ const login = async (req, res) => {
 module.exports = {
   login,
   createMaintenanceStaff,
+  getMaintenanceStaff,
 };

@@ -269,10 +269,48 @@ const vacateRoom = async (req, res) => {
   }
 };
 
+const activateRoomAllocation = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const allocation = await prisma.roomAllocation.findUnique({
+      where: { id },
+    });
+
+    if (!allocation) {
+      return res.status(404).json({
+        success: false,
+        message: "Room allocation not found",
+      });
+    }
+
+    const updatedAllocation = await prisma.roomAllocation.update({
+      where: { id },
+      data: {
+        status: "ACTIVE",
+        vacatedAt: null,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Room allocation activated successfully",
+      data: updatedAllocation,
+    });
+  } catch (error) {
+    console.error("Activate room allocation error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to activate room allocation",
+    });
+  }
+};
 
 module.exports = {
   createRoomAllocation,
   getRoomAllocations,
   getRoomAllocationById,
   vacateRoom,
+  activateRoomAllocation,
 };
