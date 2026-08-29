@@ -286,6 +286,24 @@ export default function Maintenance() {
         />
       }
     >
+      {/* NAVIGATION */}
+
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => {
+          if (userRole === "ADMIN") {
+            router.replace("/admin");
+          } else {
+            router.replace("/maintenance");
+          }
+        }}
+      >
+        <Text style={styles.backButtonText}>
+          ← Back to Home
+        </Text>
+      </TouchableOpacity>
+
+
       {/* HEADER */}
 
       <View
@@ -529,6 +547,21 @@ const styles =
     loadingText: {
       marginTop: 12,
       color: "#64748B",
+    },
+
+    backButton: {
+      alignSelf: "flex-start",
+      backgroundColor: "#E2E8F0",
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 10,
+      marginBottom: 15,
+    },
+
+    backButtonText: {
+      color: "#1E3A8A",
+      fontSize: 15,
+      fontWeight: "700",
     },
 
     header: {

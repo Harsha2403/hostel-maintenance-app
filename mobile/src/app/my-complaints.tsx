@@ -478,6 +478,18 @@ export default function MyComplaints() {
     <View style={styles.container}>
 
 
+      {/* BACK TO HOME */}
+
+      <TouchableOpacity
+        style={styles.backHomeButton}
+        onPress={() => router.replace("/student")}
+      >
+        <Text style={styles.backHomeButtonText}>
+          ← Back to Home
+        </Text>
+      </TouchableOpacity>
+
+
       {/* HEADER */}
 
       <View style={styles.header}>
@@ -572,6 +584,21 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     color: "#64748B",
+  },
+
+  backHomeButton: {
+    alignSelf: "flex-start",
+    backgroundColor: "#E2E8F0",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginBottom: 15,
+  },
+
+  backHomeButtonText: {
+    color: "#1E3A8A",
+    fontSize: 15,
+    fontWeight: "700",
   },
 
   header: {
