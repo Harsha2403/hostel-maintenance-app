@@ -107,6 +107,7 @@ model Student {
   id              String           @id @default(uuid())
   userId          String           @unique
   studentNumber   String           @unique
+  gender          Gender
   department      String?
   course          String?
   year            Int?
@@ -361,6 +362,11 @@ enum UserRole {
 enum BlockType {
   BOYS
   GIRLS
+}
+
+enum Gender {
+  MALE
+  FEMALE
 }
 
 enum StudentStatus {

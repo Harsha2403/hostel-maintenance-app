@@ -20,6 +20,7 @@ type PendingStudent = {
   id: string;
   userId: string;
   studentNumber: string;
+  gender: "MALE" | "FEMALE";
   department?: string | null;
   course?: string | null;
   year?: number | null;
@@ -197,6 +198,11 @@ export default function AdminDashboard() {
         student.user.lastName
       );
 
+      console.log(
+        "Gender:",
+        student.gender
+      );
+
       setProcessingStudentId(
         student.id
       );
@@ -247,8 +253,6 @@ export default function AdminDashboard() {
           "Student approved successfully"
         );
 
-        // Remove approved student
-        // from pending list immediately.
         setPendingStudents(
           (currentStudents) =>
             currentStudents.filter(
@@ -325,6 +329,11 @@ export default function AdminDashboard() {
       console.log(
         "Student ID:",
         student.id
+      );
+
+      console.log(
+        "Gender:",
+        student.gender
       );
 
       setProcessingStudentId(
@@ -419,14 +428,6 @@ export default function AdminDashboard() {
         "user",
       ]);
 
-      await AsyncStorage.removeItem(
-        "token"
-      );
-
-      await AsyncStorage.removeItem(
-        "user"
-      );
-
       console.log(
         "Admin logout successful"
       );
@@ -459,6 +460,18 @@ export default function AdminDashboard() {
     } catch {
       return dateString;
     }
+  };
+
+  // ==========================================================
+  // FORMAT GENDER
+  // ==========================================================
+
+  const formatGender = (
+    gender: "MALE" | "FEMALE"
+  ) => {
+    return gender === "MALE"
+      ? "Male"
+      : "Female";
   };
 
   // ==========================================================
@@ -625,7 +638,9 @@ export default function AdminDashboard() {
                 style={styles.studentCard}
               >
 
-                {/* STUDENT HEADER */}
+                {/* =================================================
+                    STUDENT HEADER
+                ================================================= */}
 
                 <View
                   style={
@@ -695,11 +710,15 @@ export default function AdminDashboard() {
                 </View>
 
 
-                {/* STUDENT DETAILS */}
+                {/* =================================================
+                    STUDENT DETAILS
+                ================================================= */}
 
                 <View
                   style={styles.detailsBox}
                 >
+
+                  {/* STUDENT NUMBER */}
 
                   <View
                     style={
@@ -726,6 +745,50 @@ export default function AdminDashboard() {
                   </View>
 
 
+                  {/* GENDER */}
+
+                  <View
+                    style={[
+                      styles.detailRow,
+                      styles.genderRow,
+                    ]}
+                  >
+                    <Text
+                      style={
+                        styles.detailLabel
+                      }
+                    >
+                      Gender
+                    </Text>
+
+                    <View
+                      style={[
+                        styles.genderBadge,
+                        student.gender ===
+                          "MALE"
+                          ? styles.maleBadge
+                          : styles.femaleBadge,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.genderBadgeText,
+                          student.gender ===
+                            "MALE"
+                            ? styles.maleText
+                            : styles.femaleText,
+                        ]}
+                      >
+                        {formatGender(
+                          student.gender
+                        )}
+                      </Text>
+                    </View>
+                  </View>
+
+
+                  {/* PHONE */}
+
                   <View
                     style={
                       styles.detailRow
@@ -749,6 +812,8 @@ export default function AdminDashboard() {
                     </Text>
                   </View>
 
+
+                  {/* DEPARTMENT */}
 
                   <View
                     style={
@@ -774,6 +839,8 @@ export default function AdminDashboard() {
                   </View>
 
 
+                  {/* COURSE */}
+
                   <View
                     style={
                       styles.detailRow
@@ -797,6 +864,8 @@ export default function AdminDashboard() {
                     </Text>
                   </View>
 
+
+                  {/* YEAR */}
 
                   <View
                     style={
@@ -822,6 +891,8 @@ export default function AdminDashboard() {
                     </Text>
                   </View>
 
+
+                  {/* REGISTERED */}
 
                   <View
                     style={
@@ -989,6 +1060,52 @@ export default function AdminDashboard() {
 
 
       {/* ====================================================
+          ROOM ALLOCATION
+      ==================================================== */}
+
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() =>
+          router.push(
+            "/room-allocation"
+          )
+        }
+        activeOpacity={0.8}
+      >
+
+        <View
+          style={styles.iconBox}
+        >
+          <Text style={styles.icon}>
+            🏠
+          </Text>
+        </View>
+
+        <View
+          style={styles.cardContent}
+        >
+          <Text
+            style={styles.cardTitle}
+          >
+            Room Allocation
+          </Text>
+
+          <Text
+            style={styles.cardDescription}
+          >
+            Allocate hostel rooms to
+            approved students.
+          </Text>
+        </View>
+
+        <Text style={styles.arrow}>
+          →
+        </Text>
+
+      </TouchableOpacity>
+
+
+      {/* ====================================================
           MAINTENANCE STAFF
       ==================================================== */}
 
@@ -1058,6 +1175,12 @@ export default function AdminDashboard() {
           style={styles.infoText}
         >
           • Approve or reject students
+        </Text>
+
+        <Text
+          style={styles.infoText}
+        >
+          • Allocate rooms to students
         </Text>
 
         <Text
@@ -1376,7 +1499,12 @@ const styles = StyleSheet.create({
   detailRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: 7,
+  },
+
+  genderRow: {
+    alignItems: "center",
   },
 
   detailLabel: {
@@ -1391,6 +1519,37 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     flex: 1.3,
     textAlign: "right",
+  },
+
+  // ========================================================
+  // GENDER BADGE
+  // ========================================================
+
+  genderBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+
+  maleBadge: {
+    backgroundColor: "#DBEAFE",
+  },
+
+  femaleBadge: {
+    backgroundColor: "#FCE7F3",
+  },
+
+  genderBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  maleText: {
+    color: "#1D4ED8",
+  },
+
+  femaleText: {
+    color: "#BE185D",
   },
 
   // ========================================================

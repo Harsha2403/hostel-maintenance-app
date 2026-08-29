@@ -23,6 +23,7 @@ export default function StudentRegister() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [studentNumber, setStudentNumber] = useState("");
+  const [gender, setGender] = useState("");
   const [department, setDepartment] = useState("");
   const [course, setCourse] = useState("");
   const [year, setYear] = useState("");
@@ -45,6 +46,7 @@ export default function StudentRegister() {
       !lastName.trim() ||
       !email.trim() ||
       !studentNumber.trim() ||
+      !gender ||
       !password ||
       !confirmPassword
     ) {
@@ -66,6 +68,18 @@ export default function StudentRegister() {
       Alert.alert(
         "Registration Error",
         "Please enter a valid email address."
+      );
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // Gender validation
+    // ----------------------------------------------------------
+
+    if (!["MALE", "FEMALE"].includes(gender)) {
+      Alert.alert(
+        "Registration Error",
+        "Please select Male or Female."
       );
       return;
     }
@@ -153,6 +167,10 @@ export default function StudentRegister() {
           studentNumber:
             studentNumber.trim().toUpperCase(),
 
+          // IMPORTANT:
+          // Backend expects MALE or FEMALE
+          gender: gender,
+
           department:
             department.trim() || null,
 
@@ -173,47 +191,47 @@ export default function StudentRegister() {
       // ========================================================
 
       if (response.data?.success === true) {
-  const successMessage =
-    "Your student account has been registered successfully.\n\n" +
-    "Your account is now waiting for Admin approval.\n\n" +
-    "You can login after the Admin approves your registration.";
+        const successMessage =
+          "Your student account has been registered successfully.\n\n" +
+          "Your account is now waiting for Admin approval.\n\n" +
+          "You can login after the Admin approves your registration.";
 
-  // ========================================================
-  // WEB
-  // ========================================================
+        // ========================================================
+        // WEB
+        // ========================================================
 
-  if (Platform.OS === "web") {
-    window.alert(
-      "Registered Successfully\n\n" +
-        successMessage
-    );
+        if (Platform.OS === "web") {
+          window.alert(
+            "Registered Successfully\n\n" +
+              successMessage
+          );
 
-    router.replace("/login");
-    return;
-  }
-
-  // ========================================================
-  // ANDROID / IOS
-  // ========================================================
-
-  Alert.alert(
-    "Registered Successfully",
-    successMessage,
-    [
-      {
-        text: "OK",
-        onPress: () => {
           router.replace("/login");
-        },
-      },
-    ],
-    {
-      cancelable: false,
-    }
-  );
+          return;
+        }
 
-  return;
-}
+        // ========================================================
+        // ANDROID / IOS
+        // ========================================================
+
+        Alert.alert(
+          "Registered Successfully",
+          successMessage,
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                router.replace("/login");
+              },
+            },
+          ],
+          {
+            cancelable: false,
+          }
+        );
+
+        return;
+      }
 
       // ========================================================
       // API RETURNED FAILURE
@@ -380,6 +398,90 @@ export default function StudentRegister() {
             autoCorrect={false}
             editable={!loading}
           />
+
+
+          {/* ==================================================
+              GENDER
+          ================================================== */}
+
+          <Text style={styles.label}>
+            Gender *
+          </Text>
+
+          <View style={styles.genderContainer}>
+
+            {/* MALE */}
+
+            <TouchableOpacity
+              style={[
+                styles.genderOption,
+                gender === "MALE" &&
+                  styles.genderOptionSelected,
+              ]}
+              onPress={() => setGender("MALE")}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              <View
+                style={[
+                  styles.radioCircle,
+                  gender === "MALE" &&
+                    styles.radioCircleSelected,
+                ]}
+              >
+                {gender === "MALE" && (
+                  <View style={styles.radioInner} />
+                )}
+              </View>
+
+              <Text
+                style={[
+                  styles.genderText,
+                  gender === "MALE" &&
+                    styles.genderTextSelected,
+                ]}
+              >
+                Male
+              </Text>
+            </TouchableOpacity>
+
+
+            {/* FEMALE */}
+
+            <TouchableOpacity
+              style={[
+                styles.genderOption,
+                gender === "FEMALE" &&
+                  styles.genderOptionSelected,
+              ]}
+              onPress={() => setGender("FEMALE")}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              <View
+                style={[
+                  styles.radioCircle,
+                  gender === "FEMALE" &&
+                    styles.radioCircleSelected,
+                ]}
+              >
+                {gender === "FEMALE" && (
+                  <View style={styles.radioInner} />
+                )}
+              </View>
+
+              <Text
+                style={[
+                  styles.genderText,
+                  gender === "FEMALE" &&
+                    styles.genderTextSelected,
+                ]}
+              >
+                Female
+              </Text>
+            </TouchableOpacity>
+
+          </View>
 
 
           {/* ==================================================
@@ -597,6 +699,65 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#1E293B",
     backgroundColor: "#FFFFFF",
+  },
+
+  // ========================================================
+  // GENDER STYLES
+  // ========================================================
+
+  genderContainer: {
+    flexDirection: "row",
+    gap: 12,
+  },
+
+  genderOption: {
+    flex: 1,
+    height: 52,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+  },
+
+  genderOptionSelected: {
+    borderColor: "#2563EB",
+    backgroundColor: "#EFF6FF",
+  },
+
+  radioCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#94A3B8",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+
+  radioCircleSelected: {
+    borderColor: "#2563EB",
+  },
+
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#2563EB",
+  },
+
+  genderText: {
+    fontSize: 16,
+    color: "#334155",
+    fontWeight: "500",
+  },
+
+  genderTextSelected: {
+    color: "#2563EB",
+    fontWeight: "700",
   },
 
   helperText: {

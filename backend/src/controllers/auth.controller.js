@@ -51,6 +51,7 @@ const createMaintenanceStaff = async (req, res) => {
         role: "MAINTENANCE_STAFF",
         isActive: true,
       },
+
       select: {
         id: true,
         email: true,
@@ -120,10 +121,11 @@ const getMaintenanceStaff = async (req, res) => {
   }
 };
 
+
 // ==========================================
 // Student Self Registration
+// PUBLIC
 // ==========================================
-
 const studentRegister = async (req, res) => {
   try {
     const {
@@ -133,28 +135,55 @@ const studentRegister = async (req, res) => {
       lastName,
       phone,
       studentNumber,
+      gender,
       department,
       course,
       year,
     } = req.body;
+
+
+    // ==========================================
+    // REQUIRED FIELD VALIDATION
+    // ==========================================
 
     if (
       !email ||
       !password ||
       !firstName ||
       !lastName ||
-      !studentNumber
+      !studentNumber ||
+      !gender
     ) {
       return res.status(400).json({
         success: false,
         message:
-          "email, password, firstName, lastName and studentNumber are required",
+          "email, password, firstName, lastName, studentNumber and gender are required",
       });
     }
 
+
+    // ==========================================
+    // GENDER VALIDATION
+    // ==========================================
+
+    if (!["MALE", "FEMALE"].includes(gender)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Gender must be either MALE or FEMALE",
+      });
+    }
+
+
+    // ==========================================
+    // CHECK EMAIL
+    // ==========================================
+
     const existingUser =
       await prisma.user.findUnique({
-        where: { email },
+        where: {
+          email,
+        },
       });
 
     if (existingUser) {
@@ -164,9 +193,16 @@ const studentRegister = async (req, res) => {
       });
     }
 
+
+    // ==========================================
+    // CHECK STUDENT NUMBER
+    // ==========================================
+
     const existingStudent =
       await prisma.student.findUnique({
-        where: { studentNumber },
+        where: {
+          studentNumber,
+        },
       });
 
     if (existingStudent) {
@@ -177,6 +213,11 @@ const studentRegister = async (req, res) => {
       });
     }
 
+
+    // ==========================================
+    // PASSWORD VALIDATION
+    // ==========================================
+
     if (password.length < 8) {
       return res.status(400).json({
         success: false,
@@ -185,8 +226,18 @@ const studentRegister = async (req, res) => {
       });
     }
 
+
+    // ==========================================
+    // HASH PASSWORD
+    // ==========================================
+
     const hashedPassword =
       await bcrypt.hash(password, 10);
+
+
+    // ==========================================
+    // CREATE USER + STUDENT
+    // ==========================================
 
     const student =
       await prisma.user.create({
@@ -201,9 +252,16 @@ const studentRegister = async (req, res) => {
           student: {
             create: {
               studentNumber,
+
+              // Student gender
+              gender,
+
               department:
                 department || null,
-              course: course || null,
+
+              course:
+                course || null,
+
               year:
                 year !== undefined &&
                 year !== null &&
@@ -212,7 +270,7 @@ const studentRegister = async (req, res) => {
                   : null,
 
               // Self-registered students
-              // must wait for Admin.
+              // must wait for Admin approval.
               status: "PENDING",
             },
           },
@@ -223,8 +281,14 @@ const studentRegister = async (req, res) => {
         },
       });
 
+
+    // ==========================================
+    // SUCCESS RESPONSE
+    // ==========================================
+
     return res.status(201).json({
       success: true,
+
       message:
         "Registration successful. Your account is waiting for Admin approval.",
 
@@ -234,9 +298,11 @@ const studentRegister = async (req, res) => {
         firstName: student.firstName,
         lastName: student.lastName,
         role: student.role,
+        gender: student.student.gender,
         status: student.student.status,
       },
     });
+
   } catch (error) {
     console.error(
       "Student registration error:",
@@ -251,19 +317,21 @@ const studentRegister = async (req, res) => {
   }
 };
 
-// ==========================================
-// Login
-// ==========================================
-// ==========================================
-// Login
-// ==========================================
 
+// ==========================================
+// Login
+// ==========================================
 const login = async (req, res) => {
   try {
     const {
       email,
       password,
     } = req.body;
+
+
+    // ==========================================
+    // REQUIRED FIELD VALIDATION
+    // ==========================================
 
     if (!email || !password) {
       return res.status(400).json({
@@ -272,6 +340,11 @@ const login = async (req, res) => {
           "Email and password are required",
       });
     }
+
+
+    // ==========================================
+    // FIND USER
+    // ==========================================
 
     const user =
       await prisma.user.findUnique({
@@ -284,6 +357,11 @@ const login = async (req, res) => {
         },
       });
 
+
+    // ==========================================
+    // USER NOT FOUND
+    // ==========================================
+
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -292,11 +370,14 @@ const login = async (req, res) => {
       });
     }
 
+
+    // ==========================================
+    // ACCOUNT ACTIVE CHECK
+    // ==========================================
+
     if (!user.isActive) {
 
-      // Give a useful message for rejected
-      // or inactive accounts.
-
+      // Rejected student
       if (
         user.role === "STUDENT" &&
         user.student?.status === "REJECTED"
@@ -315,12 +396,14 @@ const login = async (req, res) => {
       });
     }
 
+
     // ==========================================
     // STUDENT APPROVAL CHECK
     // ==========================================
 
     if (user.role === "STUDENT") {
 
+      // Student profile doesn't exist
       if (!user.student) {
         return res.status(403).json({
           success: false,
@@ -329,6 +412,8 @@ const login = async (req, res) => {
         });
       }
 
+
+      // Pending approval
       if (
         user.student.status === "PENDING"
       ) {
@@ -339,6 +424,8 @@ const login = async (req, res) => {
         });
       }
 
+
+      // Rejected
       if (
         user.student.status === "REJECTED"
       ) {
@@ -349,6 +436,8 @@ const login = async (req, res) => {
         });
       }
 
+
+      // Any other non-active status
       if (
         user.student.status !== "ACTIVE"
       ) {
@@ -360,8 +449,9 @@ const login = async (req, res) => {
       }
     }
 
+
     // ==========================================
-    // PASSWORD
+    // PASSWORD CHECK
     // ==========================================
 
     const passwordMatches =
@@ -378,8 +468,9 @@ const login = async (req, res) => {
       });
     }
 
+
     // ==========================================
-    // JWT
+    // CREATE JWT
     // ==========================================
 
     const token = jwt.sign(
@@ -397,6 +488,11 @@ const login = async (req, res) => {
       }
     );
 
+
+    // ==========================================
+    // LOGIN RESPONSE
+    // ==========================================
+
     return res.status(200).json({
       success: true,
       message: "Login successful",
@@ -413,6 +509,9 @@ const login = async (req, res) => {
         ...(user.role === "STUDENT" && {
           studentStatus:
             user.student?.status,
+
+          gender:
+            user.student?.gender,
         }),
       },
     });
@@ -431,6 +530,10 @@ const login = async (req, res) => {
   }
 };
 
+
+// ==========================================
+// EXPORTS
+// ==========================================
 
 module.exports = {
   login,
