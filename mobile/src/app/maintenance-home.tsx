@@ -50,36 +50,24 @@ export default function MaintenanceHome() {
   };
 
   const handleLogout = async () => {
-    Alert.alert(
-      "Logout",
-      "Are you sure you want to logout?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Logout",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await AsyncStorage.multiRemove([
-                "token",
-                "user",
-              ]);
+    try {
+      await AsyncStorage.multiRemove([
+        "token",
+        "user",
+      ]);
 
-              router.replace("/login");
-            } catch (error) {
-              console.log("Logout error:", error);
-              Alert.alert(
-                "Error",
-                "Unable to logout. Please try again."
-              );
-            }
-          },
-        },
-      ]
-    );
+      await AsyncStorage.removeItem("token");
+      await AsyncStorage.removeItem("user");
+
+      router.replace("/login");
+    } catch (error) {
+      console.log("Logout error:", error);
+
+      Alert.alert(
+        "Logout Error",
+        "Unable to logout. Please try again."
+      );
+    }
   };
 
   if (loading) {
