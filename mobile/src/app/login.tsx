@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+
 import { router } from "expo-router";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -21,26 +22,47 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert("Error", "Please enter email and password.");
+      Alert.alert(
+        "Error",
+        "Please enter email and password."
+      );
       return;
     }
 
     try {
       setLoading(true);
 
-      // Change this IP address if your backend is running elsewhere
+      // Clear any previous session
+      await AsyncStorage.removeItem("token");
+      await AsyncStorage.removeItem("user");
+
+      // ==========================================
+      // LOGIN API
+      // ==========================================
+
       const response = await axios.post(
         "http://192.168.31.239:5000/api/auth/login",
         {
-          email,
+          email: email.trim(),
           password,
         }
       );
 
       const { token, user } = response.data;
 
-      await AsyncStorage.setItem("token", token);
-      await AsyncStorage.setItem("user", JSON.stringify(user));
+      // ==========================================
+      // SAVE SESSION
+      // ==========================================
+
+      await AsyncStorage.setItem(
+        "token",
+        token
+      );
+
+      await AsyncStorage.setItem(
+        "user",
+        JSON.stringify(user)
+      );
 
       // ==========================================
       // ROLE-BASED NAVIGATION
@@ -48,17 +70,27 @@ export default function LoginScreen() {
 
       if (user.role === "ADMIN") {
         router.replace("/admin");
+
       } else if (user.role === "STUDENT") {
         router.replace("/student");
-      } else if (user.role === "MAINTENANCE_STAFF") {
-        // Maintenance staff now goes to their
-        // own home/dashboard first.
+
+      } else if (
+        user.role === "MAINTENANCE_STAFF"
+      ) {
+        // Maintenance staff goes to
+        // their own dashboard first.
         router.replace("/maintenance-home");
+
       } else {
-        Alert.alert("Error", "Unknown user role.");
+        Alert.alert(
+          "Error",
+          "Unknown user role."
+        );
       }
+
     } catch (error: any) {
       console.log(
+        "Login error:",
         error?.response?.data || error
       );
 
@@ -67,6 +99,7 @@ export default function LoginScreen() {
         error?.response?.data?.message ||
           "Unable to connect to the server."
       );
+
     } finally {
       setLoading(false);
     }
@@ -82,6 +115,11 @@ export default function LoginScreen() {
       }
     >
       <View style={styles.card}>
+
+        {/* ==========================================
+            TITLE
+        ========================================== */}
+
         <Text style={styles.title}>
           Hostel Maintenance
         </Text>
@@ -90,7 +128,10 @@ export default function LoginScreen() {
           Sign in to manage hostel maintenance
         </Text>
 
-        {/* EMAIL */}
+
+        {/* ==========================================
+            EMAIL
+        ========================================== */}
 
         <Text style={styles.label}>
           Email Address
@@ -99,13 +140,17 @@ export default function LoginScreen() {
         <TextInput
           style={styles.input}
           placeholder="Enter your email"
+          placeholderTextColor="#94A3B8"
           autoCapitalize="none"
           keyboardType="email-address"
           value={email}
           onChangeText={setEmail}
         />
 
-        {/* PASSWORD */}
+
+        {/* ==========================================
+            PASSWORD
+        ========================================== */}
 
         <Text style={styles.label}>
           Password
@@ -114,21 +159,29 @@ export default function LoginScreen() {
         <TextInput
           style={styles.input}
           placeholder="Enter your password"
+          placeholderTextColor="#94A3B8"
           secureTextEntry
           value={password}
           onChangeText={setPassword}
         />
 
-        {/* LOGIN BUTTON */}
+
+        {/* ==========================================
+            LOGIN BUTTON
+        ========================================== */}
 
         <TouchableOpacity
-          style={styles.loginButton}
+          style={[
+            styles.loginButton,
+            loading && styles.disabledButton,
+          ]}
           onPress={handleLogin}
           disabled={loading}
+          activeOpacity={0.8}
         >
           {loading ? (
             <ActivityIndicator
-              color="#ffffff"
+              color="#FFFFFF"
             />
           ) : (
             <Text
@@ -138,12 +191,47 @@ export default function LoginScreen() {
             </Text>
           )}
         </TouchableOpacity>
+
+
+        {/* ==========================================
+            STUDENT REGISTRATION
+        ========================================== */}
+
+        <View style={styles.registerSection}>
+
+          <Text style={styles.registerQuestion}>
+            Don't have an account?
+          </Text>
+
+          <TouchableOpacity
+            style={styles.registerButton}
+            onPress={() =>
+              router.push("/student-register")
+            }
+            activeOpacity={0.8}
+            disabled={loading}
+          >
+            <Text
+              style={styles.registerButtonText}
+            >
+              Register as Student
+            </Text>
+          </TouchableOpacity>
+
+        </View>
+
       </View>
     </KeyboardAvoidingView>
   );
 }
 
+
+// ==========================================================
+// STYLES
+// ==========================================================
+
 const styles = StyleSheet.create({
+
   container: {
     flex: 1,
     backgroundColor: "#0F172A",
@@ -170,6 +258,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: "#64748B",
     marginBottom: 30,
+    lineHeight: 21,
   },
 
   label: {
@@ -187,6 +276,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 15,
     fontSize: 16,
+    color: "#1E293B",
+    backgroundColor: "#FFFFFF",
   },
 
   loginButton: {
@@ -198,9 +289,41 @@ const styles = StyleSheet.create({
     marginTop: 30,
   },
 
+  disabledButton: {
+    opacity: 0.6,
+  },
+
   loginButtonText: {
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "bold",
   },
+
+  registerSection: {
+    alignItems: "center",
+    marginTop: 22,
+  },
+
+  registerQuestion: {
+    fontSize: 14,
+    color: "#64748B",
+    marginBottom: 10,
+  },
+
+  registerButton: {
+    height: 48,
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "#2563EB",
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  registerButtonText: {
+    color: "#2563EB",
+    fontSize: 15,
+    fontWeight: "bold",
+  },
+
 });

@@ -3,6 +3,9 @@ const express = require("express");
 const {
   createStudent,
   getStudents,
+  getPendingStudents,
+  approveStudent,
+  rejectStudent,
   getStudentById,
   updateStudent,
 } = require("../controllers/student.controller");
@@ -14,7 +17,11 @@ const {
 
 const router = express.Router();
 
-// Get all students - Admin and Warden
+
+// ==========================================================
+// GET ALL STUDENTS
+// ==========================================================
+
 router.get(
   "/",
   authenticateToken,
@@ -22,7 +29,50 @@ router.get(
   getStudents
 );
 
-// Get student by ID
+
+// ==========================================================
+// GET PENDING STUDENTS
+// IMPORTANT: THIS MUST COME BEFORE /:id
+// ==========================================================
+
+router.get(
+  "/pending",
+  authenticateToken,
+  authorizeRoles("ADMIN", "WARDEN"),
+  getPendingStudents
+);
+
+
+// ==========================================================
+// APPROVE STUDENT
+// ADMIN ONLY
+// ==========================================================
+
+router.put(
+  "/:id/approve",
+  authenticateToken,
+  authorizeRoles("ADMIN"),
+  approveStudent
+);
+
+
+// ==========================================================
+// REJECT STUDENT
+// ADMIN ONLY
+// ==========================================================
+
+router.put(
+  "/:id/reject",
+  authenticateToken,
+  authorizeRoles("ADMIN"),
+  rejectStudent
+);
+
+
+// ==========================================================
+// GET STUDENT BY ID
+// ==========================================================
+
 router.get(
   "/:id",
   authenticateToken,
@@ -30,7 +80,12 @@ router.get(
   getStudentById
 );
 
-// Create student - Admin only
+
+// ==========================================================
+// CREATE STUDENT
+// ADMIN ONLY
+// ==========================================================
+
 router.post(
   "/",
   authenticateToken,
@@ -38,12 +93,18 @@ router.post(
   createStudent
 );
 
-// Update student - Admin only
+
+// ==========================================================
+// UPDATE STUDENT
+// ADMIN ONLY
+// ==========================================================
+
 router.put(
   "/:id",
   authenticateToken,
   authorizeRoles("ADMIN"),
   updateStudent
 );
+
 
 module.exports = router;

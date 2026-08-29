@@ -364,7 +364,9 @@ enum BlockType {
 }
 
 enum StudentStatus {
+  PENDING
   ACTIVE
+  REJECTED
   INACTIVE
   GRADUATED
 }

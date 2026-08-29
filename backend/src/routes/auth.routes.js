@@ -2,6 +2,7 @@ const express = require("express");
 
 const {
   login,
+  studentRegister,
   createMaintenanceStaff,
   getMaintenanceStaff,
 } = require("../controllers/auth.controller");
@@ -22,6 +23,15 @@ router.post(
   login
 );
 
+// ==========================================
+// STUDENT SELF REGISTRATION
+// PUBLIC
+// ==========================================
+
+router.post(
+  "/student-register",
+  studentRegister
+);
 
 // ==========================================
 // ADMIN AUTHORIZATION

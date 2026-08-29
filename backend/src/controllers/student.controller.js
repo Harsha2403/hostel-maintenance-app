@@ -1,7 +1,13 @@
 const bcrypt = require("bcrypt");
 const prisma = require("../config/prisma");
 
-// Create Student
+// ==========================================================
+// CREATE STUDENT
+// ADMIN ONLY
+//
+// Existing Admin-created students remain ACTIVE by default.
+// ==========================================================
+
 const createStudent = async (req, res) => {
   try {
     const {
@@ -16,7 +22,6 @@ const createStudent = async (req, res) => {
       year,
     } = req.body;
 
-    // Validate required fields
     if (
       !email ||
       !password ||
@@ -31,7 +36,6 @@ const createStudent = async (req, res) => {
       });
     }
 
-    // Check if email already exists
     const existingUser = await prisma.user.findUnique({
       where: { email },
     });
@@ -43,10 +47,10 @@ const createStudent = async (req, res) => {
       });
     }
 
-    // Check if student number already exists
-    const existingStudent = await prisma.student.findUnique({
-      where: { studentNumber },
-    });
+    const existingStudent =
+      await prisma.student.findUnique({
+        where: { studentNumber },
+      });
 
     if (existingStudent) {
       return res.status(409).json({
@@ -55,37 +59,47 @@ const createStudent = async (req, res) => {
       });
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword =
+      await bcrypt.hash(password, 10);
 
-    // Create User + Student in one transaction
-    const student = await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        firstName,
-        lastName,
-        phone,
-        role: "STUDENT",
+    const student =
+      await prisma.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          firstName,
+          lastName,
+          phone: phone || null,
+          role: "STUDENT",
 
-        student: {
-          create: {
-            studentNumber,
-            department,
-            course,
-            year,
+          student: {
+            create: {
+              studentNumber,
+              department: department || null,
+              course: course || null,
+              year:
+                year !== undefined &&
+                year !== null &&
+                year !== ""
+                  ? Number(year)
+                  : null,
+
+              // Admin-created student
+              // remains ACTIVE.
+              status: "ACTIVE",
+            },
           },
         },
-      },
 
-      include: {
-        student: true,
-      },
-    });
+        include: {
+          student: true,
+        },
+      });
 
     return res.status(201).json({
       success: true,
       message: "Student created successfully",
+
       data: {
         id: student.id,
         email: student.email,
@@ -97,7 +111,10 @@ const createStudent = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Create student error:", error);
+    console.error(
+      "Create student error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
@@ -106,93 +123,39 @@ const createStudent = async (req, res) => {
   }
 };
 
-// Get All Students
+
+// ==========================================================
+// GET ALL STUDENTS
+// ADMIN / WARDEN
+// ==========================================================
+
 const getStudents = async (req, res) => {
   try {
-    const students = await prisma.student.findMany({
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            phone: true,
-            isActive: true,
-          },
-        },
-
-        roomAllocations: {
-          where: {
-            status: "ACTIVE",
-          },
-          include: {
-            room: {
-              include: {
-                floor: {
-                  include: {
-                    block: true,
-                  },
-                },
-              },
+    const students =
+      await prisma.student.findMany({
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+              phone: true,
+              isActive: true,
             },
           },
-        },
-      },
 
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+          roomAllocations: {
+            where: {
+              status: "ACTIVE",
+            },
 
-    return res.status(200).json({
-      success: true,
-      count: students.length,
-      data: students,
-    });
-  } catch (error) {
-    console.error("Get students error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch students",
-    });
-  }
-};
-
-// Get Student By ID
-const getStudentById = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const student = await prisma.student.findUnique({
-      where: { id },
-
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            phone: true,
-            isActive: true,
-            role: true,
-          },
-        },
-
-        parentContacts: true,
-
-        roomAllocations: {
-          include: {
-            room: {
-              include: {
-                floor: {
-                  include: {
-                    block: {
-                      include: {
-                        hostelBuilding: true,
-                      },
+            include: {
+              room: {
+                include: {
+                  floor: {
+                    include: {
+                      block: true,
                     },
                   },
                 },
@@ -201,9 +164,303 @@ const getStudentById = async (req, res) => {
           },
         },
 
-        complaints: true,
-      },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+    return res.status(200).json({
+      success: true,
+      count: students.length,
+      data: students,
     });
+  } catch (error) {
+    console.error(
+      "Get students error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch students",
+    });
+  }
+};
+
+
+// ==========================================================
+// GET PENDING STUDENTS
+// ADMIN / WARDEN
+// ==========================================================
+
+const getPendingStudents = async (
+  req,
+  res
+) => {
+  try {
+    const students =
+      await prisma.student.findMany({
+        where: {
+          status: "PENDING",
+        },
+
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+              phone: true,
+              isActive: true,
+            },
+          },
+        },
+
+        orderBy: {
+          createdAt: "asc",
+        },
+      });
+
+    return res.status(200).json({
+      success: true,
+      count: students.length,
+      data: students,
+    });
+  } catch (error) {
+    console.error(
+      "Get pending students error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to fetch pending students",
+    });
+  }
+};
+
+
+// ==========================================================
+// APPROVE STUDENT
+// ADMIN ONLY
+// ==========================================================
+
+const approveStudent = async (
+  req,
+  res
+) => {
+  try {
+    const { id } = req.params;
+
+    const student =
+      await prisma.student.findUnique({
+        where: { id },
+        include: {
+          user: true,
+        },
+      });
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student not found",
+      });
+    }
+
+    if (student.status !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Only pending students can be approved",
+      });
+    }
+
+    const updatedStudent =
+      await prisma.student.update({
+        where: { id },
+
+        data: {
+          status: "ACTIVE",
+
+          user: {
+            update: {
+              isActive: true,
+            },
+          },
+        },
+
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+              phone: true,
+              isActive: true,
+              role: true,
+            },
+          },
+        },
+      });
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Student approved successfully",
+      data: updatedStudent,
+    });
+  } catch (error) {
+    console.error(
+      "Approve student error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to approve student",
+    });
+  }
+};
+
+
+// ==========================================================
+// REJECT STUDENT
+// ADMIN ONLY
+// ==========================================================
+
+const rejectStudent = async (
+  req,
+  res
+) => {
+  try {
+    const { id } = req.params;
+
+    const student =
+      await prisma.student.findUnique({
+        where: { id },
+        include: {
+          user: true,
+        },
+      });
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student not found",
+      });
+    }
+
+    if (student.status !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Only pending students can be rejected",
+      });
+    }
+
+    const updatedStudent =
+      await prisma.student.update({
+        where: { id },
+
+        data: {
+          status: "REJECTED",
+
+          user: {
+            update: {
+              isActive: false,
+            },
+          },
+        },
+
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+              phone: true,
+              isActive: true,
+              role: true,
+            },
+          },
+        },
+      });
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Student registration rejected",
+      data: updatedStudent,
+    });
+  } catch (error) {
+    console.error(
+      "Reject student error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to reject student",
+    });
+  }
+};
+
+
+// ==========================================================
+// GET STUDENT BY ID
+// ==========================================================
+
+const getStudentById = async (
+  req,
+  res
+) => {
+  try {
+    const { id } = req.params;
+
+    const student =
+      await prisma.student.findUnique({
+        where: { id },
+
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+              phone: true,
+              isActive: true,
+              role: true,
+            },
+          },
+
+          parentContacts: true,
+
+          roomAllocations: {
+            include: {
+              room: {
+                include: {
+                  floor: {
+                    include: {
+                      block: {
+                        include: {
+                          hostelBuilding: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+
+          complaints: true,
+        },
+      });
 
     if (!student) {
       return res.status(404).json({
@@ -217,7 +474,10 @@ const getStudentById = async (req, res) => {
       data: student,
     });
   } catch (error) {
-    console.error("Get student error:", error);
+    console.error(
+      "Get student error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
@@ -226,8 +486,16 @@ const getStudentById = async (req, res) => {
   }
 };
 
-// Update Student
-const updateStudent = async (req, res) => {
+
+// ==========================================================
+// UPDATE STUDENT
+// ADMIN ONLY
+// ==========================================================
+
+const updateStudent = async (
+  req,
+  res
+) => {
   try {
     const { id } = req.params;
 
@@ -242,12 +510,13 @@ const updateStudent = async (req, res) => {
       isActive,
     } = req.body;
 
-    const existingStudent = await prisma.student.findUnique({
-      where: { id },
-      include: {
-        user: true,
-      },
-    });
+    const existingStudent =
+      await prisma.student.findUnique({
+        where: { id },
+        include: {
+          user: true,
+        },
+      });
 
     if (!existingStudent) {
       return res.status(404).json({
@@ -256,38 +525,65 @@ const updateStudent = async (req, res) => {
       });
     }
 
-    const student = await prisma.student.update({
-      where: { id },
+    const student =
+      await prisma.student.update({
+        where: { id },
 
-      data: {
-        ...(department !== undefined && { department }),
-        ...(course !== undefined && { course }),
-        ...(year !== undefined && { year }),
-        ...(status !== undefined && { status }),
+        data: {
+          ...(department !== undefined && {
+            department,
+          }),
 
-        user: {
-          update: {
-            ...(firstName !== undefined && { firstName }),
-            ...(lastName !== undefined && { lastName }),
-            ...(phone !== undefined && { phone }),
-            ...(isActive !== undefined && { isActive }),
+          ...(course !== undefined && {
+            course,
+          }),
+
+          ...(year !== undefined && {
+            year:
+              year === null ||
+              year === ""
+                ? null
+                : Number(year),
+          }),
+
+          ...(status !== undefined && {
+            status,
+          }),
+
+          user: {
+            update: {
+              ...(firstName !== undefined && {
+                firstName,
+              }),
+
+              ...(lastName !== undefined && {
+                lastName,
+              }),
+
+              ...(phone !== undefined && {
+                phone,
+              }),
+
+              ...(isActive !== undefined && {
+                isActive,
+              }),
+            },
           },
         },
-      },
 
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            phone: true,
-            isActive: true,
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+              phone: true,
+              isActive: true,
+            },
           },
         },
-      },
-    });
+      });
 
     return res.status(200).json({
       success: true,
@@ -295,7 +591,10 @@ const updateStudent = async (req, res) => {
       data: student,
     });
   } catch (error) {
-    console.error("Update student error:", error);
+    console.error(
+      "Update student error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
@@ -304,9 +603,13 @@ const updateStudent = async (req, res) => {
   }
 };
 
+
 module.exports = {
   createStudent,
   getStudents,
+  getPendingStudents,
+  approveStudent,
+  rejectStudent,
   getStudentById,
   updateStudent,
 };
