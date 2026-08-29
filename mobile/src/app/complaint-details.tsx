@@ -114,6 +114,63 @@ export default function ComplaintDetails() {
     }
   };
 
+  // ==========================================
+  // COMPLAINT STATUS HISTORY
+  // Always display oldest -> newest
+  // ==========================================
+
+  const rawHistory = Array.isArray(complaint?.statusHistory)
+    ? complaint.statusHistory
+    : [];
+
+  const sortedHistory = [...rawHistory].sort((a: any, b: any) => {
+    const dateA = new Date(a?.createdAt || 0).getTime();
+    const dateB = new Date(b?.createdAt || 0).getTime();
+
+    if (dateA !== dateB) {
+      return dateA - dateB;
+    }
+
+    // Stable fallback when timestamps are equal.
+    return String(a?.id || "").localeCompare(String(b?.id || ""));
+  });
+
+  // The complaint itself was created in OPEN state.
+  // Do NOT use the current complaint.status here.
+  const trackingHistory = [
+    {
+      id: "created",
+      oldStatus: null,
+      newStatus: "OPEN",
+      changedBy: null,
+      remarks: "Complaint was submitted successfully.",
+      createdAt: complaint?.createdAt,
+      isCreated: true,
+    },
+    ...sortedHistory.map((item: any) => ({
+      ...item,
+      isCreated: false,
+    })),
+  ];
+
+  const formatTrackingStatus = (value?: string | null) => {
+    if (!value) {
+      return "";
+    }
+
+    return String(value)
+      .replace(/_/g, " ")
+      .toUpperCase();
+  };
+
+  const getHistoryLabel = (item: any) => {
+    if (item.isCreated) {
+      return "Complaint Created";
+    }
+
+    return formatTrackingStatus(item.newStatus);
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -292,6 +349,86 @@ export default function ComplaintDetails() {
         </Text>
       </View>
 
+      {/* ==========================================
+          COMPLAINT TRACKING
+      ========================================== */}
+
+      <View style={styles.trackingCard}>
+        <Text style={styles.trackingTitle}>
+          Complaint Tracking
+        </Text>
+
+        {trackingHistory.map((item: any, index: number) => {
+          const isLast = index === trackingHistory.length - 1;
+          const statusText = getHistoryLabel(item);
+          const oldStatus = formatTrackingStatus(item.oldStatus);
+          const newStatus = formatTrackingStatus(item.newStatus);
+
+          return (
+            <View
+              key={`${item.id || "history"}-${index}`}
+              style={styles.timelineRow}
+            >
+              {/* TIMELINE */}
+              <View style={styles.timelineLeft}>
+                <View
+                  style={[
+                    styles.timelineDot,
+                    {
+                      backgroundColor: getStatusColor(
+                        item.newStatus
+                      ),
+                    },
+                  ]}
+                />
+
+                {!isLast && (
+                  <View style={styles.timelineLine} />
+                )}
+              </View>
+
+              {/* EVENT DETAILS */}
+              <View style={styles.timelineContent}>
+                <Text style={styles.timelineStatus}>
+                  {statusText}
+                </Text>
+
+                {!item.isCreated && oldStatus && (
+                  <Text style={styles.timelineTransition}>
+                    {oldStatus} → {newStatus}
+                  </Text>
+                )}
+
+                {item.isCreated && (
+                  <Text style={styles.timelineTransition}>
+                    OPEN
+                  </Text>
+                )}
+
+                <Text style={styles.timelineDate}>
+                  {item.createdAt
+                    ? new Date(item.createdAt).toLocaleString()
+                    : "Date not available"}
+                </Text>
+
+                {!item.isCreated && item.changedBy && (
+                  <Text style={styles.timelineChangedBy}>
+                    Updated by: System user
+                  </Text>
+                )}
+
+                <Text style={styles.timelineRemark}>
+                  {item.remarks ||
+                    (item.isCreated
+                      ? "Complaint was submitted successfully."
+                      : "Status updated")}
+                </Text>
+              </View>
+            </View>
+          );
+        })}
+      </View>
+
       <TouchableOpacity
         style={styles.backToListButton}
         onPress={() => router.replace("/my-complaints")}
@@ -442,6 +579,85 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#334155",
     lineHeight: 24,
+  },
+
+  trackingCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 18,
+    marginBottom: 12,
+  },
+
+  trackingTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#334155",
+    marginBottom: 20,
+  },
+
+  timelineRow: {
+    flexDirection: "row",
+    minHeight: 95,
+  },
+
+  timelineLeft: {
+    width: 28,
+    alignItems: "center",
+    position: "relative",
+  },
+
+  timelineDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    marginTop: 2,
+    zIndex: 2,
+  },
+
+  timelineLine: {
+    position: "absolute",
+    top: 16,
+    bottom: 0,
+    width: 2,
+    backgroundColor: "#CBD5E1",
+  },
+
+  timelineContent: {
+    flex: 1,
+    paddingLeft: 10,
+    paddingBottom: 22,
+  },
+
+  timelineStatus: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#0F172A",
+    marginBottom: 4,
+  },
+
+  timelineTransition: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#475569",
+    marginBottom: 5,
+  },
+
+  timelineDate: {
+    fontSize: 12,
+    color: "#64748B",
+    marginBottom: 4,
+  },
+
+  timelineChangedBy: {
+    fontSize: 12,
+    color: "#64748B",
+    marginBottom: 5,
+  },
+
+  timelineRemark: {
+    fontSize: 14,
+    color: "#334155",
+    lineHeight: 20,
   },
 
   backToListButton: {
