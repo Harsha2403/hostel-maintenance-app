@@ -409,6 +409,91 @@ const rejectStudent = async (
   }
 };
 
+// ==========================================================
+// GET LOGGED-IN STUDENT PROFILE
+// STUDENT ONLY
+// ==========================================================
+
+const getMyStudentProfile = async (req, res) => {
+  try {
+    // The JWT middleware should place the logged-in user's ID here
+    const userId = req.user.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid authentication token",
+      });
+    }
+
+    const student = await prisma.student.findUnique({
+      where: {
+        userId: userId,
+      },
+
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            isActive: true,
+            role: true,
+          },
+        },
+
+        roomAllocations: {
+          where: {
+            status: "ACTIVE",
+          },
+
+          orderBy: {
+            allocatedAt: "desc",
+          },
+
+          take: 1,
+
+          include: {
+            room: {
+              include: {
+                floor: {
+                  include: {
+                    block: {
+                      include: {
+                        hostelBuilding: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student profile not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: student,
+    });
+  } catch (error) {
+    console.error("Get my student profile error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch student profile",
+    });
+  }
+};
 
 // ==========================================================
 // GET STUDENT BY ID
@@ -611,5 +696,6 @@ module.exports = {
   approveStudent,
   rejectStudent,
   getStudentById,
+  getMyStudentProfile,
   updateStudent,
 };

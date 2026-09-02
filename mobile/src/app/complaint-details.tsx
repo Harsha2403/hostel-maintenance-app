@@ -10,8 +10,7 @@ import {
 import { router, useLocalSearchParams } from "expo-router";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
-const API_URL = "http://192.168.31.239:5000";
+import { API_URL } from "../config/api";
 
 export default function ComplaintDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();

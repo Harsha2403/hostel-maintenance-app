@@ -7,6 +7,7 @@ const {
   approveStudent,
   rejectStudent,
   getStudentById,
+  getMyStudentProfile,
   updateStudent,
 } = require("../controllers/student.controller");
 
@@ -42,6 +43,19 @@ router.get(
   getPendingStudents
 );
 
+
+// ==========================================================
+// GET LOGGED-IN STUDENT PROFILE
+// STUDENT ONLY
+// IMPORTANT: THIS MUST COME BEFORE /:id
+// ==========================================================
+
+router.get(
+  "/me",
+  authenticateToken,
+  authorizeRoles("STUDENT"),
+  getMyStudentProfile
+);
 
 // ==========================================================
 // APPROVE STUDENT

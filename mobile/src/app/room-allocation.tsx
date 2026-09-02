@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
+  Modal,
   StyleSheet,
   ScrollView,
   Alert,
@@ -12,8 +14,7 @@ import {
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-
-const API_URL = "http://192.168.31.239:5000";
+import { API_URL } from "../config/api";
 
 // ==========================================================
 // TYPES
@@ -76,6 +77,25 @@ type RoomAllocation = {
   vacatedAt?: string | null;
 };
 
+type Block = {
+  id: string;
+  name: string;
+  type: "BOYS" | "GIRLS";
+  isActive: boolean;
+};
+
+type Floor = {
+  id: string;
+  blockId: string;
+  floorNumber: number;
+  name?: string | null;
+  block?: {
+    id: string;
+    name: string;
+    type: "BOYS" | "GIRLS";
+  };
+};
+
 
 // ==========================================================
 // MAIN COMPONENT
@@ -101,6 +121,39 @@ export default function RoomAllocationPage() {
 
   const [showStudents, setShowStudents] = useState(false);
   const [showRooms, setShowRooms] = useState(false);
+
+  // Add block modal
+  const [showAddBlock, setShowAddBlock] = useState(false);
+  const [blockName, setBlockName] = useState("");
+  const [blockType, setBlockType] = useState<"BOYS" | "GIRLS">("BOYS");
+  const [creatingBlock, setCreatingBlock] = useState(false);
+
+  // Add floor modal
+  const [blocks, setBlocks] = useState<Block[]>([]);
+  const [floors, setFloors] = useState<Floor[]>([]);
+  const [showAddFloor, setShowAddFloor] = useState(false);
+  const [floorBlockId, setFloorBlockId] = useState("");
+  const [floorNumber, setFloorNumber] = useState("0");
+  const [floorName, setFloorName] = useState("");
+  const [creatingFloor, setCreatingFloor] = useState(false);
+  const [floorBlockPickerOpen, setFloorBlockPickerOpen] = useState(false);
+
+  // Add room modal
+  const [showAddRoom, setShowAddRoom] = useState(false);
+  const [roomBlockId, setRoomBlockId] = useState("");
+  const [roomFloorId, setRoomFloorId] = useState("");
+  const [roomNumber, setRoomNumber] = useState("");
+  const [roomCapacity, setRoomCapacity] = useState("3");
+  const [creatingRoom, setCreatingRoom] = useState(false);
+
+  // Add floor / room picker modals
+    useState(false);
+
+  const [showRoomBlockPicker, setShowRoomBlockPicker] =
+    useState(false);
+
+  const [showRoomFloorPicker, setShowRoomFloorPicker] =
+    useState(false);
 
   // Success popup
   const [showSuccess, setShowSuccess] = useState(false);
@@ -173,6 +226,8 @@ export default function RoomAllocationPage() {
       loadStudents(token),
       loadRooms(token),
       loadAllocations(token),
+      loadBlocks(token),
+      loadFloors(token),
     ]);
   };
 
@@ -346,6 +401,444 @@ export default function RoomAllocationPage() {
 
 
   // ==========================================================
+  // LOAD BLOCKS
+  // ==========================================================
+
+  const loadBlocks = async (token: string) => {
+    try {
+      const response = await axios.get(
+        `${API_URL}/api/blocks`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.data?.success) {
+        setBlocks(
+          (response.data.data || []).filter(
+            (block: Block) => block.isActive
+          )
+        );
+      } else {
+        setBlocks([]);
+      }
+    } catch (error: any) {
+      console.log(
+        "Load blocks error:",
+        error?.response?.data || error
+      );
+
+      if (error?.response?.status === 401) {
+        await AsyncStorage.multiRemove(["token", "user"]);
+        router.replace("/login");
+        return;
+      }
+
+      Alert.alert(
+        "Error",
+        error?.response?.data?.message ||
+          "Unable to load blocks."
+      );
+    }
+  };
+
+
+  // ==========================================================
+  // LOAD FLOORS
+  // ==========================================================
+
+  const loadFloors = async (token: string) => {
+    try {
+      const response = await axios.get(
+        `${API_URL}/api/floors`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.data?.success) {
+        setFloors(response.data.data || []);
+      } else {
+        setFloors([]);
+      }
+    } catch (error: any) {
+      console.log(
+        "Load floors error:",
+        error?.response?.data || error
+      );
+
+      if (error?.response?.status === 401) {
+        await AsyncStorage.multiRemove(["token", "user"]);
+        router.replace("/login");
+        return;
+      }
+
+      Alert.alert(
+        "Error",
+        error?.response?.data?.message ||
+          "Unable to load floors."
+      );
+    }
+  };
+
+
+  // ==========================================================
+  // OPEN ADD FLOOR
+  // ==========================================================
+
+  const openAddFloor = () => {
+    setShowRooms(false);
+    setShowStudents(false);
+    setShowAddRoom(false);
+    setShowRoomBlockPicker(false);
+    setShowRoomFloorPicker(false);
+    setFloorBlockPickerOpen(false);
+    setShowRoomBlockPicker(false);
+    setShowRoomFloorPicker(false);
+    setFloorBlockPickerOpen(false);
+
+    const preferredType =
+      selectedStudent?.gender === "FEMALE"
+        ? "GIRLS"
+        : selectedStudent?.gender === "MALE"
+        ? "BOYS"
+        : null;
+
+    const preferredBlock =
+      blocks.find(
+        (block) =>
+          block.type === preferredType
+      ) || blocks[0];
+
+    setFloorBlockId(
+      preferredBlock?.id || ""
+    );
+    setFloorNumber("0");
+    setFloorName("");
+    setShowAddFloor(true);
+  };
+
+
+  // ==========================================================
+  // OPEN ADD ROOM
+  // ==========================================================
+
+  const openAddRoom = () => {
+    setShowRooms(false);
+    setShowStudents(false);
+    setShowAddFloor(false);
+    setFloorBlockPickerOpen(false);
+    setShowRoomBlockPicker(false);
+    setShowRoomFloorPicker(false);
+
+    const preferredType =
+      selectedStudent?.gender === "FEMALE"
+        ? "GIRLS"
+        : selectedStudent?.gender === "MALE"
+        ? "BOYS"
+        : null;
+
+    const preferredBlock =
+      blocks.find(
+        (block) =>
+          block.type === preferredType
+      ) || blocks[0];
+
+    const preferredFloors = floors.filter(
+      (floor) =>
+        floor.blockId ===
+        preferredBlock?.id
+    );
+
+    setRoomBlockId(
+      preferredBlock?.id || ""
+    );
+    setRoomFloorId(
+      preferredFloors[0]?.id || ""
+    );
+    setRoomNumber("");
+    setRoomCapacity("3");
+    setShowAddRoom(true);
+  };
+
+
+  // ==========================================================
+  // CREATE FLOOR
+  // ==========================================================
+
+  const handleCreateFloor = async () => {
+    const parsedFloorNumber =
+      Number(floorNumber);
+
+    if (!floorBlockId) {
+      Alert.alert(
+        "Select Block",
+        "Please select a block."
+      );
+      return;
+    }
+
+    if (
+      !Number.isInteger(parsedFloorNumber) ||
+      parsedFloorNumber < 0
+    ) {
+      Alert.alert(
+        "Invalid Floor",
+        "Floor number must be a whole number 0 or greater."
+      );
+      return;
+    }
+
+    try {
+      setCreatingFloor(true);
+
+      const token =
+        await AsyncStorage.getItem("token");
+
+      if (!token) {
+        await AsyncStorage.multiRemove([
+          "token",
+          "user",
+        ]);
+        router.replace("/login");
+        return;
+      }
+
+      const response = await axios.post(
+        `${API_URL}/api/floors`,
+        {
+          blockId: floorBlockId,
+          floorNumber:
+            parsedFloorNumber,
+          name:
+            floorName.trim() || null,
+        },
+        {
+          headers: {
+            Authorization:
+              `Bearer ${token}`,
+            "Content-Type":
+              "application/json",
+          },
+        }
+      );
+
+      if (response.data?.success) {
+        const createdFloor =
+          response.data.data;
+
+        setShowAddFloor(false);
+
+        Alert.alert(
+          "Floor Created",
+          `${floorName.trim() || `Floor ${parsedFloorNumber}`} has been created successfully.`,
+          [
+            {
+              text: "Add Room",
+              onPress: async () => {
+                await loadAllData(token);
+
+                setRoomBlockId(
+                  floorBlockId
+                );
+                setRoomFloorId(
+                  createdFloor.id
+                );
+                setRoomNumber("");
+                setRoomCapacity("3");
+                setShowAddRoom(true);
+              },
+            },
+            {
+              text: "Done",
+              style: "cancel",
+              onPress: async () => {
+                await loadAllData(token);
+              },
+            },
+          ]
+        );
+      } else {
+        Alert.alert(
+          "Creation Failed",
+          response.data?.message ||
+            "Unable to create floor."
+        );
+      }
+    } catch (error: any) {
+      console.log(
+        "Create floor error:",
+        error?.response?.data || error
+      );
+
+      if (
+        error?.response?.status === 401
+      ) {
+        await AsyncStorage.multiRemove([
+          "token",
+          "user",
+        ]);
+        Alert.alert(
+          "Session Expired",
+          "Please login again."
+        );
+        router.replace("/login");
+        return;
+      }
+
+      Alert.alert(
+        "Creation Failed",
+        error?.response?.data?.message ||
+          error?.message ||
+          "Unable to create floor."
+      );
+    } finally {
+      setCreatingFloor(false);
+    }
+  };
+
+
+  // ==========================================================
+  // CREATE ROOM
+  // ==========================================================
+
+  const handleCreateRoom = async () => {
+    const trimmedRoomNumber =
+      roomNumber.trim();
+
+    const parsedCapacity =
+      Number(roomCapacity);
+
+    if (!roomBlockId) {
+      Alert.alert(
+        "Select Block",
+        "Please select a block."
+      );
+      return;
+    }
+
+    if (!roomFloorId) {
+      Alert.alert(
+        "Select Floor",
+        "Please select a floor."
+      );
+      return;
+    }
+
+    if (!trimmedRoomNumber) {
+      Alert.alert(
+        "Room Number Required",
+        "Please enter a room number."
+      );
+      return;
+    }
+
+    if (
+      !Number.isInteger(parsedCapacity) ||
+      parsedCapacity <= 0
+    ) {
+      Alert.alert(
+        "Invalid Capacity",
+        "Capacity must be a positive whole number."
+      );
+      return;
+    }
+
+    try {
+      setCreatingRoom(true);
+
+      const token =
+        await AsyncStorage.getItem("token");
+
+      if (!token) {
+        await AsyncStorage.multiRemove([
+          "token",
+          "user",
+        ]);
+        router.replace("/login");
+        return;
+      }
+
+      const response = await axios.post(
+        `${API_URL}/api/rooms`,
+        {
+          floorId: roomFloorId,
+          roomNumber:
+            trimmedRoomNumber,
+          capacity:
+            parsedCapacity,
+        },
+        {
+          headers: {
+            Authorization:
+              `Bearer ${token}`,
+            "Content-Type":
+              "application/json",
+          },
+        }
+      );
+
+      if (response.data?.success) {
+        setShowAddRoom(false);
+        setRoomNumber("");
+
+        Alert.alert(
+          "Room Created",
+          `Room ${trimmedRoomNumber} has been created successfully.`,
+          [
+            {
+              text: "OK",
+              onPress: async () => {
+                await loadAllData(token);
+              },
+            },
+          ]
+        );
+      } else {
+        Alert.alert(
+          "Creation Failed",
+          response.data?.message ||
+            "Unable to create room."
+        );
+      }
+    } catch (error: any) {
+      console.log(
+        "Create room error:",
+        error?.response?.data || error
+      );
+
+      if (
+        error?.response?.status === 401
+      ) {
+        await AsyncStorage.multiRemove([
+          "token",
+          "user",
+        ]);
+        Alert.alert(
+          "Session Expired",
+          "Please login again."
+        );
+        router.replace("/login");
+        return;
+      }
+
+      Alert.alert(
+        "Creation Failed",
+        error?.response?.data?.message ||
+          error?.message ||
+          "Unable to create room."
+      );
+    } finally {
+      setCreatingRoom(false);
+    }
+  };
+
+
+  // ==========================================================
   // ROOM OCCUPANCY
   // ==========================================================
 
@@ -410,6 +903,91 @@ export default function RoomAllocationPage() {
         blockType === expectedBlockType
       );
     });
+  };
+
+
+  // ==========================================================
+  // CREATE BLOCK
+  // ==========================================================
+
+  const handleCreateBlock = async () => {
+    const trimmedName = blockName.trim();
+
+    if (!trimmedName) {
+      Alert.alert("Block Name Required", "Please enter a block name.");
+      return;
+    }
+
+    try {
+      setCreatingBlock(true);
+
+      const token = await AsyncStorage.getItem("token");
+
+      if (!token) {
+        await AsyncStorage.multiRemove(["token", "user"]);
+        router.replace("/login");
+        return;
+      }
+
+      const response = await axios.post(
+        `${API_URL}/api/blocks`,
+        {
+          hostelBuildingId: "fc43d6a1-da9b-440d-a92f-46ab68418a2d",
+          name: trimmedName,
+          type: blockType,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.data?.success) {
+        setShowAddBlock(false);
+        setBlockName("");
+
+        Alert.alert(
+          "Block Created",
+          `${trimmedName} has been created successfully as a ${blockType === "BOYS" ? "Boys" : "Girls"} block.`,
+          [
+            {
+              text: "OK",
+              onPress: async () => {
+                await loadAllData(token);
+              },
+            },
+          ]
+        );
+      } else {
+        Alert.alert(
+          "Creation Failed",
+          response.data?.message || "Unable to create block."
+        );
+      }
+    } catch (error: any) {
+      console.log(
+        "Create block error:",
+        error?.response?.data || error
+      );
+
+      if (error?.response?.status === 401) {
+        await AsyncStorage.multiRemove(["token", "user"]);
+        Alert.alert("Session Expired", "Please login again.");
+        router.replace("/login");
+        return;
+      }
+
+      Alert.alert(
+        "Creation Failed",
+        error?.response?.data?.message ||
+          error?.message ||
+          "Unable to create block."
+      );
+    } finally {
+      setCreatingBlock(false);
+    }
   };
 
 
@@ -710,6 +1288,903 @@ export default function RoomAllocationPage() {
       {/* ====================================================
           SUCCESS POPUP
       ==================================================== */}
+
+      {/* ====================================================
+          ADD FLOOR MODAL
+      ==================================================== */}
+
+      <Modal
+        visible={showAddFloor}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!creatingFloor) {
+            setFloorBlockPickerOpen(false);
+            setShowAddFloor(false);
+          }
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.addCleanModal}>
+
+            <View style={styles.addBlockHeader}>
+              <View style={styles.modalHeaderText}>
+                <Text style={styles.addBlockTitle}>
+                  Add New Floor
+                </Text>
+                <Text style={styles.addBlockSubtitle}>
+                  Add a floor under an existing block
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => {
+                  if (!creatingFloor) {
+                    setFloorBlockPickerOpen(false);
+                    setShowAddFloor(false);
+                  }
+                }}
+                disabled={creatingFloor}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.closeButtonText}>
+                  ×
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalLabel}>
+              Block
+            </Text>
+
+            <TouchableOpacity
+              style={styles.selectorField}
+              onPress={() => {
+                if (!creatingFloor) {
+                  setFloorBlockPickerOpen(true);
+                }
+              }}
+              disabled={creatingFloor}
+              activeOpacity={0.8}
+            >
+              <View style={styles.selectorFieldContent}>
+                <Text
+                  style={[
+                    styles.selectorValue,
+                    !floorBlockId &&
+                      styles.selectorPlaceholder,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {blocks.find(
+                    (block) =>
+                      block.id === floorBlockId
+                  )?.name || "Select a block"}
+                </Text>
+
+                {floorBlockId && (
+                  <Text style={styles.selectorSecondary}>
+                    {blocks.find(
+                      (block) =>
+                        block.id === floorBlockId
+                    )?.type}
+                  </Text>
+                )}
+              </View>
+
+              <Text style={styles.selectorArrow}>
+                ▼
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={styles.modalLabel}>
+              Floor Number
+            </Text>
+
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Example: 1"
+              placeholderTextColor="#94A3B8"
+              value={floorNumber}
+              onChangeText={setFloorNumber}
+              editable={!creatingFloor}
+              keyboardType="numeric"
+              maxLength={3}
+            />
+
+            <Text style={styles.modalLabel}>
+              Floor Name
+            </Text>
+
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Example: First Floor"
+              placeholderTextColor="#94A3B8"
+              value={floorName}
+              onChangeText={setFloorName}
+              editable={!creatingFloor}
+              autoCapitalize="words"
+              maxLength={50}
+            />
+
+            <View style={styles.roomModalHint}>
+              <Text style={styles.roomModalHintText}>
+                After creating the floor, you can add rooms
+                under it.
+              </Text>
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => {
+                  setFloorBlockPickerOpen(false);
+                  setShowAddFloor(false);
+                }}
+                disabled={creatingFloor}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.modalCancelText}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.modalCreateButton,
+                  (!floorBlockId || creatingFloor) &&
+                    styles.disabledButton,
+                ]}
+                onPress={handleCreateFloor}
+                disabled={
+                  creatingFloor || !floorBlockId
+                }
+                activeOpacity={0.8}
+              >
+                {creatingFloor ? (
+                  <View style={styles.buttonContent}>
+                    <ActivityIndicator
+                      size="small"
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.modalCreateText}>
+                      Creating...
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.modalCreateText}>
+                    Create Floor
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+
+      {/* ====================================================
+          FLOOR BLOCK PICKER
+      ==================================================== */}
+
+      <Modal
+        visible={floorBlockPickerOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() =>
+          setFloorBlockPickerOpen(false)
+        }
+      >
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerModal}>
+
+            <View style={styles.pickerHeader}>
+              <View style={styles.modalHeaderText}>
+                <Text style={styles.pickerTitle}>
+                  Select Block
+                </Text>
+                <Text style={styles.pickerSubtitle}>
+                  Choose where to create the floor
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() =>
+                  setFloorBlockPickerOpen(false)
+                }
+                activeOpacity={0.8}
+              >
+                <Text style={styles.closeButtonText}>
+                  ×
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.pickerList}
+              showsVerticalScrollIndicator
+              nestedScrollEnabled
+            >
+              {blocks.length === 0 ? (
+                <View style={styles.selectorEmpty}>
+                  <Text style={styles.emptyDropdownText}>
+                    No active blocks available.
+                  </Text>
+                </View>
+              ) : (
+                blocks.map((block) => (
+                  <TouchableOpacity
+                    key={block.id}
+                    style={[
+                      styles.pickerOption,
+                      floorBlockId === block.id &&
+                        styles.pickerOptionSelected,
+                    ]}
+                    onPress={() => {
+                      setFloorBlockId(block.id);
+                      setFloorBlockPickerOpen(false);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.pickerOptionText}>
+                      <Text style={styles.pickerOptionTitle}>
+                        {block.name}
+                      </Text>
+                      <Text style={styles.pickerOptionSubtitle}>
+                        {block.type}
+                      </Text>
+                    </View>
+
+                    {floorBlockId === block.id && (
+                      <Text style={styles.pickerCheck}>
+                        ✓
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+
+          </View>
+        </View>
+      </Modal>
+
+
+      {/* ====================================================
+          ADD ROOM MODAL
+      ==================================================== */}
+
+      <Modal
+        visible={showAddRoom}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!creatingRoom) {
+            setShowRoomBlockPicker(false);
+            setShowRoomFloorPicker(false);
+            setShowAddRoom(false);
+          }
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.addCleanModal}>
+
+            <View style={styles.addBlockHeader}>
+              <View style={styles.modalHeaderText}>
+                <Text style={styles.addBlockTitle}>
+                  Add New Room
+                </Text>
+                <Text style={styles.addBlockSubtitle}>
+                  Add a room under a selected floor
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => {
+                  if (!creatingRoom) {
+                    setShowRoomBlockPicker(false);
+                    setShowRoomFloorPicker(false);
+                    setShowAddRoom(false);
+                  }
+                }}
+                disabled={creatingRoom}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.closeButtonText}>
+                  ×
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* BLOCK */}
+            <Text style={styles.modalLabel}>
+              Block
+            </Text>
+
+            <TouchableOpacity
+              style={styles.selectorField}
+              onPress={() => {
+                if (!creatingRoom) {
+                  setShowRoomFloorPicker(false);
+                  setShowRoomBlockPicker(true);
+                }
+              }}
+              disabled={creatingRoom}
+              activeOpacity={0.8}
+            >
+              <View style={styles.selectorFieldContent}>
+                <Text
+                  style={[
+                    styles.selectorValue,
+                    !roomBlockId &&
+                      styles.selectorPlaceholder,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {blocks.find(
+                    (block) =>
+                      block.id === roomBlockId
+                  )?.name || "Select a block"}
+                </Text>
+
+                {roomBlockId && (
+                  <Text style={styles.selectorSecondary}>
+                    {blocks.find(
+                      (block) =>
+                        block.id === roomBlockId
+                    )?.type}
+                  </Text>
+                )}
+              </View>
+
+              <Text style={styles.selectorArrow}>
+                ▼
+              </Text>
+            </TouchableOpacity>
+
+            {/* FLOOR */}
+            <Text style={styles.modalLabel}>
+              Floor
+            </Text>
+
+            <TouchableOpacity
+              style={[
+                styles.selectorField,
+                !roomBlockId &&
+                  styles.selectorDisabled,
+              ]}
+              onPress={() => {
+                if (!creatingRoom && roomBlockId) {
+                  setShowRoomBlockPicker(false);
+                  setShowRoomFloorPicker(true);
+                } else {
+                  Alert.alert(
+                    "Select Block",
+                    "Please select a block first."
+                  );
+                }
+              }}
+              disabled={creatingRoom}
+              activeOpacity={0.8}
+            >
+              <View style={styles.selectorFieldContent}>
+                <Text
+                  style={[
+                    styles.selectorValue,
+                    !roomFloorId &&
+                      styles.selectorPlaceholder,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {floors.find(
+                    (floor) =>
+                      floor.id === roomFloorId
+                  )?.name ||
+                    (roomFloorId
+                      ? `Floor ${
+                          floors.find(
+                            (floor) =>
+                              floor.id === roomFloorId
+                          )?.floorNumber
+                        }`
+                      : "Select a floor")}
+                </Text>
+
+                {roomFloorId && (
+                  <Text style={styles.selectorSecondary}>
+                    Floor{" "}
+                    {
+                      floors.find(
+                        (floor) =>
+                          floor.id === roomFloorId
+                      )?.floorNumber
+                    }
+                  </Text>
+                )}
+              </View>
+
+              <Text style={styles.selectorArrow}>
+                ▼
+              </Text>
+            </TouchableOpacity>
+
+            {/* ROOM NUMBER */}
+            <Text style={styles.modalLabel}>
+              Room Number
+            </Text>
+
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Example: G201"
+              placeholderTextColor="#94A3B8"
+              value={roomNumber}
+              onChangeText={setRoomNumber}
+              editable={!creatingRoom}
+              autoCapitalize="characters"
+              maxLength={20}
+            />
+
+            {/* CAPACITY */}
+            <Text style={styles.modalLabel}>
+              Capacity
+            </Text>
+
+            <TextInput
+              style={styles.modalInput}
+              placeholder="3"
+              placeholderTextColor="#94A3B8"
+              value={roomCapacity}
+              onChangeText={setRoomCapacity}
+              editable={!creatingRoom}
+              keyboardType="numeric"
+              maxLength={3}
+            />
+
+            <View style={styles.roomModalHint}>
+              <Text style={styles.roomModalHintText}>
+                The room follows the selected block's gender
+                restriction automatically.
+              </Text>
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => {
+                  setShowRoomBlockPicker(false);
+                  setShowRoomFloorPicker(false);
+                  setShowAddRoom(false);
+                }}
+                disabled={creatingRoom}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.modalCancelText}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.modalCreateButton,
+                  (!roomBlockId ||
+                    !roomFloorId ||
+                    creatingRoom) &&
+                    styles.disabledButton,
+                ]}
+                onPress={handleCreateRoom}
+                disabled={
+                  creatingRoom ||
+                  !roomBlockId ||
+                  !roomFloorId
+                }
+                activeOpacity={0.8}
+              >
+                {creatingRoom ? (
+                  <View style={styles.buttonContent}>
+                    <ActivityIndicator
+                      size="small"
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.modalCreateText}>
+                      Creating...
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.modalCreateText}>
+                    Create Room
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+          </View>
+        </View>
+      </Modal>
+
+
+      {/* ====================================================
+          ROOM BLOCK PICKER
+      ==================================================== */}
+
+      <Modal
+        visible={showRoomBlockPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() =>
+          setShowRoomBlockPicker(false)
+        }
+      >
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerModal}>
+
+            <View style={styles.pickerHeader}>
+              <View style={styles.modalHeaderText}>
+                <Text style={styles.pickerTitle}>
+                  Select Block
+                </Text>
+                <Text style={styles.pickerSubtitle}>
+                  Choose the block for this room
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() =>
+                  setShowRoomBlockPicker(false)
+                }
+                activeOpacity={0.8}
+              >
+                <Text style={styles.closeButtonText}>
+                  ×
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.pickerList}
+              showsVerticalScrollIndicator
+              nestedScrollEnabled
+            >
+              {blocks.length === 0 ? (
+                <View style={styles.selectorEmpty}>
+                  <Text style={styles.emptyDropdownText}>
+                    No active blocks available.
+                  </Text>
+                </View>
+              ) : (
+                blocks.map((block) => (
+                  <TouchableOpacity
+                    key={block.id}
+                    style={[
+                      styles.pickerOption,
+                      roomBlockId === block.id &&
+                        styles.pickerOptionSelected,
+                    ]}
+                    onPress={() => {
+                      setRoomBlockId(block.id);
+
+                      const firstFloor =
+                        floors.find(
+                          (floor) =>
+                            floor.blockId ===
+                            block.id
+                        );
+
+                      setRoomFloorId(
+                        firstFloor?.id || ""
+                      );
+
+                      setShowRoomBlockPicker(false);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.pickerOptionText}>
+                      <Text style={styles.pickerOptionTitle}>
+                        {block.name}
+                      </Text>
+                      <Text style={styles.pickerOptionSubtitle}>
+                        {block.type}
+                      </Text>
+                    </View>
+
+                    {roomBlockId === block.id && (
+                      <Text style={styles.pickerCheck}>
+                        ✓
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+
+          </View>
+        </View>
+      </Modal>
+
+
+      {/* ====================================================
+          ROOM FLOOR PICKER
+      ==================================================== */}
+
+      <Modal
+        visible={showRoomFloorPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() =>
+          setShowRoomFloorPicker(false)
+        }
+      >
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerModal}>
+
+            <View style={styles.pickerHeader}>
+              <View style={styles.modalHeaderText}>
+                <Text style={styles.pickerTitle}>
+                  Select Floor
+                </Text>
+                <Text style={styles.pickerSubtitle}>
+                  Choose the floor for this room
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() =>
+                  setShowRoomFloorPicker(false)
+                }
+                activeOpacity={0.8}
+              >
+                <Text style={styles.closeButtonText}>
+                  ×
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.pickerList}
+              showsVerticalScrollIndicator
+              nestedScrollEnabled
+            >
+              {floors.filter(
+                (floor) =>
+                  floor.blockId === roomBlockId
+              ).length === 0 ? (
+                <View style={styles.selectorEmpty}>
+                  <Text style={styles.emptyDropdownText}>
+                    No floors exist for this block.
+                    Create a floor first.
+                  </Text>
+                </View>
+              ) : (
+                floors
+                  .filter(
+                    (floor) =>
+                      floor.blockId ===
+                      roomBlockId
+                  )
+                  .map((floor) => (
+                    <TouchableOpacity
+                      key={floor.id}
+                      style={[
+                        styles.pickerOption,
+                        roomFloorId ===
+                          floor.id &&
+                          styles.pickerOptionSelected,
+                      ]}
+                      onPress={() => {
+                        setRoomFloorId(
+                          floor.id
+                        );
+                        setShowRoomFloorPicker(
+                          false
+                        );
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <View
+                        style={
+                          styles.pickerOptionText
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.pickerOptionTitle
+                          }
+                        >
+                          {floor.name ||
+                            `Floor ${floor.floorNumber}`}
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.pickerOptionSubtitle
+                          }
+                        >
+                          Floor{" "}
+                          {floor.floorNumber}
+                        </Text>
+                      </View>
+
+                      {roomFloorId ===
+                        floor.id && (
+                        <Text
+                          style={
+                            styles.pickerCheck
+                          }
+                        >
+                          ✓
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  ))
+              )}
+            </ScrollView>
+
+          </View>
+        </View>
+      </Modal>
+
+
+      {/* ====================================================
+          ADD BLOCK MODAL
+      ==================================================== */}
+
+      <Modal
+        visible={showAddBlock}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!creatingBlock) {
+            setShowAddBlock(false);
+          }
+        }}
+      >
+        <View style={styles.addBlockOverlay}>
+          <View style={styles.addBlockModal}>
+
+            <View style={styles.addBlockHeader}>
+              <View>
+                <Text style={styles.addBlockTitle}>
+                  Add New Block
+                </Text>
+                <Text style={styles.addBlockSubtitle}>
+                  Create a Boys or Girls hostel block
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => {
+                  if (!creatingBlock) {
+                    setShowAddBlock(false);
+                  }
+                }}
+                disabled={creatingBlock}
+              >
+                <Text style={styles.closeButtonText}>
+                  ×
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalLabel}>
+              Block Name
+            </Text>
+
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Example: Boys Block B"
+              placeholderTextColor="#94A3B8"
+              value={blockName}
+              onChangeText={setBlockName}
+              editable={!creatingBlock}
+              autoCapitalize="words"
+            />
+
+            <Text style={styles.modalLabel}>
+              Block Type
+            </Text>
+
+            <View style={styles.blockTypeContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.blockTypeButton,
+                  blockType === "BOYS" &&
+                    styles.blockTypeButtonSelected,
+                ]}
+                onPress={() => setBlockType("BOYS")}
+                disabled={creatingBlock}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.blockTypeIcon}>
+                  👨‍🎓
+                </Text>
+                <Text
+                  style={[
+                    styles.blockTypeText,
+                    blockType === "BOYS" &&
+                      styles.blockTypeTextSelected,
+                  ]}
+                >
+                  Boys
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.blockTypeButton,
+                  blockType === "GIRLS" &&
+                    styles.blockTypeButtonSelected,
+                ]}
+                onPress={() => setBlockType("GIRLS")}
+                disabled={creatingBlock}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.blockTypeIcon}>
+                  👩‍🎓
+                </Text>
+                <Text
+                  style={[
+                    styles.blockTypeText,
+                    blockType === "GIRLS" &&
+                      styles.blockTypeTextSelected,
+                  ]}
+                >
+                  Girls
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalHint}>
+              After creating the block, add a floor and
+              room under it before allocating students.
+            </Text>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setShowAddBlock(false)}
+                disabled={creatingBlock}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.modalCancelText}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.modalCreateButton,
+                  creatingBlock && styles.disabledButton,
+                ]}
+                onPress={handleCreateBlock}
+                disabled={creatingBlock}
+                activeOpacity={0.8}
+              >
+                {creatingBlock ? (
+                  <>
+                    <ActivityIndicator
+                      size="small"
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.modalCreateText}>
+                      Creating...
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={styles.modalCreateText}>
+                    Create Block
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+          </View>
+        </View>
+      </Modal>
 
       {showSuccess && (
         <View style={styles.successOverlay}>
@@ -1188,11 +2663,51 @@ export default function RoomAllocationPage() {
 
         <View style={styles.section}>
 
-          <Text
-            style={styles.sectionTitle}
-          >
-            2. Select Room
-          </Text>
+          <View style={styles.roomSectionHeader}>
+            <Text
+              style={styles.sectionTitle}
+            >
+              2. Select Room
+            </Text>
+
+            <View style={styles.roomActionButtons}>
+              <TouchableOpacity
+                style={styles.addRoomButton}
+                onPress={openAddRoom}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.addRoomButtonText}>
+                  + Add Room
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.addFloorButton}
+                onPress={openAddFloor}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.addFloorButtonText}>
+                  + Add Floor
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.addBlockButton}
+                onPress={() => {
+                  setShowAddBlock(true);
+                  setShowRooms(false);
+                  setShowStudents(false);
+                  setShowAddFloor(false);
+                  setShowAddRoom(false);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.addBlockButtonText}>
+                  + Add Block
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
           <TouchableOpacity
             style={[
@@ -2059,6 +3574,367 @@ const styles = StyleSheet.create({
 
 
   // ========================================================
+  // ROOM SECTION HEADER
+  // ========================================================
+
+  roomSectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+    flexWrap: "wrap",
+    gap: 8,
+  },
+
+  roomActionButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+
+  addRoomButton: {
+    backgroundColor: "#DCFCE7",
+    borderWidth: 1,
+    borderColor: "#86EFAC",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+
+  addRoomButtonText: {
+    color: "#15803D",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  addFloorButton: {
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#6EE7B7",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+
+  addFloorButtonText: {
+    color: "#047857",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  addBlockButton: {
+    backgroundColor: "#DBEAFE",
+    borderWidth: 1,
+    borderColor: "#93C5FD",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+
+  addBlockButtonText: {
+    color: "#1D4ED8",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  // ========================================================
+  // ADD BLOCK MODAL
+  // ========================================================
+
+  addBlockOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.60)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.55)",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    padding: 0,
+  },
+
+  pickerModal: {
+    width: "100%",
+    maxWidth: 430,
+    maxHeight: "78%",
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    padding: 20,
+  },
+
+  pickerHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+
+  pickerTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1E293B",
+  },
+
+  pickerSubtitle: {
+    fontSize: 13,
+    color: "#64748B",
+    marginTop: 4,
+  },
+
+  pickerList: {
+    maxHeight: 430,
+  },
+
+  pickerOption: {
+    minHeight: 64,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+  },
+
+  pickerOptionSelected: {
+    borderColor: "#2563EB",
+    backgroundColor: "#EFF6FF",
+  },
+
+  pickerOptionText: {
+    flex: 1,
+    paddingRight: 10,
+  },
+
+  pickerOptionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1E293B",
+  },
+
+  pickerOptionSubtitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748B",
+    marginTop: 3,
+  },
+
+  pickerCheck: {
+    color: "#2563EB",
+    fontSize: 20,
+    fontWeight: "800",
+  },
+
+  modalHeaderText: {
+    flex: 1,
+  },
+
+  addCleanModal: {
+    width: "100%",
+    maxWidth: 430,
+    maxHeight: 650,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 22,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.20,
+    shadowRadius: 18,
+    elevation: 12,
+  },
+
+  addBlockModal: {
+    width: "100%",
+    maxWidth: 430,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.20,
+    shadowRadius: 18,
+    elevation: 12,
+  },
+
+  addRoomModal: {
+    width: "100%",
+    maxWidth: 430,
+    maxHeight: 680,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 22,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.20,
+    shadowRadius: 18,
+    elevation: 12,
+  },
+
+  addBlockHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 20,
+  },
+
+  addBlockTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#1E293B",
+    marginBottom: 4,
+  },
+
+  addBlockSubtitle: {
+    fontSize: 13,
+    color: "#64748B",
+  },
+
+  closeButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#F1F5F9",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  closeButtonText: {
+    fontSize: 24,
+    color: "#64748B",
+    lineHeight: 26,
+  },
+
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#334155",
+    marginBottom: 8,
+    marginTop: 6,
+  },
+
+  modalInput: {
+    height: 52,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    color: "#1E293B",
+    backgroundColor: "#FFFFFF",
+    marginBottom: 14,
+  },
+
+  blockTypeContainer: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12,
+  },
+
+  blockTypeButton: {
+    flex: 1,
+    minHeight: 86,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  blockTypeButtonSelected: {
+    borderColor: "#2563EB",
+    backgroundColor: "#EFF6FF",
+  },
+
+  blockTypeIcon: {
+    fontSize: 26,
+    marginBottom: 5,
+  },
+
+  blockTypeText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#475569",
+  },
+
+  blockTypeTextSelected: {
+    color: "#1D4ED8",
+    fontWeight: "700",
+  },
+
+  modalHint: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 10,
+    padding: 12,
+    color: "#64748B",
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 20,
+  },
+
+  modalActions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+
+  modalCancelButton: {
+    flex: 1,
+    height: 50,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  modalCancelText: {
+    color: "#475569",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+
+  modalCreateButton: {
+    flex: 1,
+    height: 50,
+    backgroundColor: "#2563EB",
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+
+  buttonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+
+  modalCreateText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+
+  // ========================================================
   // SECTIONS
   // ========================================================
 
@@ -2071,6 +3947,148 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#1E293B",
     marginBottom: 10,
+  },
+
+
+  selectorField: {
+    minHeight: 58,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+
+  selectorDisabled: {
+    backgroundColor: "#F8FAFC",
+    borderColor: "#E2E8F0",
+  },
+
+  selectorFieldContent: {
+    flex: 1,
+    paddingRight: 10,
+  },
+
+  selectorValue: {
+    color: "#1E293B",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+
+  selectorPlaceholder: {
+    color: "#94A3B8",
+    fontWeight: "400",
+  },
+
+  selectorSecondary: {
+    color: "#64748B",
+    fontSize: 12,
+    marginTop: 2,
+  },
+
+  selectorArrow: {
+    color: "#2563EB",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
+  selectorDropdown: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    borderRadius: 12,
+    marginTop: 4,
+    marginBottom: 10,
+    overflow: "hidden",
+    elevation: 5,
+    zIndex: 50,
+  },
+
+  selectorScroll: {
+    maxHeight: 180,
+  },
+
+  selectorOption: {
+    minHeight: 54,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    justifyContent: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    backgroundColor: "#FFFFFF",
+  },
+
+  selectorOptionSelected: {
+    backgroundColor: "#EFF6FF",
+    borderLeftWidth: 3,
+    borderLeftColor: "#2563EB",
+  },
+
+  selectorOptionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1E293B",
+  },
+
+  selectorOptionSubtitle: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 2,
+    fontWeight: "600",
+  },
+
+  selectorEmpty: {
+    padding: 16,
+    alignItems: "center",
+  },
+
+  selectionList: {
+    maxHeight: 130,
+    marginBottom: 6,
+  },
+
+  selectionOption: {
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 10,
+    padding: 11,
+    marginBottom: 8,
+    backgroundColor: "#FFFFFF",
+  },
+
+  selectionOptionSelected: {
+    borderColor: "#2563EB",
+    backgroundColor: "#EFF6FF",
+  },
+
+  selectionOptionTitle: {
+    fontSize: 14,
+    color: "#1E293B",
+    fontWeight: "700",
+  },
+
+  selectionOptionSubtitle: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 2,
+  },
+
+  roomModalHint: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+  },
+
+  roomModalHintText: {
+    color: "#64748B",
+    fontSize: 12,
+    lineHeight: 18,
   },
 
 

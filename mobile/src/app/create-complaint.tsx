@@ -12,8 +12,8 @@ import {
 import { router } from "expo-router";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { API_URL } from "../config/api";
 
-const API_URL = "http://192.168.31.239:5000";
 
 interface ComplaintCategory {
   id: string;
