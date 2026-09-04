@@ -27,6 +27,16 @@ import { API_URL } from "../config/api";
 
 
 
+interface ComplaintStats {
+  open: number;
+  assigned: number;
+  inProgress: number;
+  resolved: number;
+  closed: number;
+  activeWorkload: number;
+  totalAssigned: number;
+}
+
 interface MaintenanceStaff {
   id: string;
   email: string;
@@ -36,6 +46,7 @@ interface MaintenanceStaff {
   role: string;
   isActive: boolean;
   createdAt?: string;
+  complaintStats?: ComplaintStats;
 }
 
 export default function MaintenanceStaffPage() {
@@ -111,7 +122,7 @@ export default function MaintenanceStaffPage() {
       const token = await getToken();
 
       const response = await axios.get(
-        `${API_URL}/api/auth/maintenance-staff`,
+        `${API_URL}/api/auth/maintenance-staff?includeInactive=true`,
         {
           headers: {
             Authorization:
@@ -305,6 +316,108 @@ export default function MaintenanceStaffPage() {
   };
 
   // ==========================================
+  // ACTIVATE / DEACTIVATE STAFF
+  // ==========================================
+
+  const handleToggleStatus = (member: MaintenanceStaff) => {
+    const nextStatus = !member.isActive;
+
+    Alert.alert(
+      nextStatus
+        ? "Activate Staff"
+        : "Deactivate Staff",
+      nextStatus
+        ? `Activate ${member.firstName} ${member.lastName}?`
+        : `Deactivate ${member.firstName} ${member.lastName}?`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: nextStatus
+            ? "Activate"
+            : "Deactivate",
+          style: nextStatus
+            ? "default"
+            : "destructive",
+          onPress: async () => {
+            try {
+              const token = await getToken();
+
+              const response =
+                await axios.patch(
+                  `${API_URL}/api/auth/maintenance-staff/${member.id}/status`,
+                  {
+                    isActive: nextStatus,
+                  },
+                  {
+                    headers: {
+                      Authorization:
+                        `Bearer ${token}`,
+                      "Content-Type":
+                        "application/json",
+                    },
+                  }
+                );
+
+              if (response.data?.success) {
+                Alert.alert(
+                  "Success",
+                  response.data.message ||
+                    "Staff status updated successfully."
+                );
+
+                await fetchStaff();
+              } else {
+                Alert.alert(
+                  "Error",
+                  response.data?.message ||
+                    "Failed to update staff status."
+                );
+              }
+            } catch (error: any) {
+              console.log(
+                "Toggle staff status error:",
+                error?.response?.data ||
+                  error?.message
+              );
+
+              Alert.alert(
+                "Error",
+                error?.response?.data?.message ||
+                  error?.message ||
+                  "Failed to update staff status."
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // ==========================================
+  // WORKLOAD HELPERS
+  // ==========================================
+
+  const getComplaintStats = (
+    member: MaintenanceStaff
+  ): ComplaintStats => {
+    return (
+      member.complaintStats || {
+        open: 0,
+        assigned: 0,
+        inProgress: 0,
+        resolved: 0,
+        closed: 0,
+        activeWorkload: 0,
+        totalAssigned: 0,
+      }
+    );
+  };
+
+
+  // ==========================================
   // LOADING
   // ==========================================
 
@@ -362,11 +475,15 @@ export default function MaintenanceStaffPage() {
 
         <View style={styles.countBadge}>
           <Text style={styles.countText}>
-            {staff.length}
+            {staff.filter((member) => member.isActive).length}
           </Text>
 
           <Text style={styles.countLabel}>
-            Staff
+            Active Staff
+          </Text>
+
+          <Text style={styles.totalStaffText}>
+            Total: {staff.length}
           </Text>
         </View>
       </View>
@@ -532,7 +649,7 @@ export default function MaintenanceStaffPage() {
       {/* STAFF LIST */}
 
       <Text style={styles.sectionTitle}>
-        Active Maintenance Staff
+        Maintenance Staff
       </Text>
 
       {staff.length === 0 ? (
@@ -547,62 +664,183 @@ export default function MaintenanceStaffPage() {
           </Text>
         </View>
       ) : (
-        staff.map((member) => (
-          <View
-            key={member.id}
-            style={styles.staffCard}
-          >
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {member.firstName
-                  ?.charAt(0)
-                  ?.toUpperCase()}
-                {member.lastName
-                  ?.charAt(0)
-                  ?.toUpperCase()}
-              </Text>
-            </View>
+        staff.map((member) => {
+          const stats = getComplaintStats(member);
 
-            <View style={styles.staffInfo}>
-              <Text style={styles.staffName}>
-                {member.firstName}{" "}
-                {member.lastName}
-              </Text>
-
-              <Text style={styles.staffEmail}>
-                {member.email}
-              </Text>
-
-              {member.phone && (
-                <Text style={styles.staffPhone}>
-                  {member.phone}
-                </Text>
-              )}
-
-              <View style={styles.staffBottomRow}>
-                <View
-                  style={styles.activeBadge}
-                >
-                  <View
-                    style={styles.activeDot}
-                  />
-
-                  <Text
-                    style={
-                      styles.activeText
-                    }
-                  >
-                    Active
-                  </Text>
-                </View>
-
-                <Text style={styles.roleText}>
-                  Maintenance Staff
+          return (
+            <View
+              key={member.id}
+              style={[
+                styles.staffCard,
+                !member.isActive &&
+                  styles.inactiveStaffCard,
+              ]}
+            >
+              <View
+                style={[
+                  styles.avatar,
+                  !member.isActive &&
+                    styles.inactiveAvatar,
+                ]}
+              >
+                <Text style={styles.avatarText}>
+                  {member.firstName
+                    ?.charAt(0)
+                    ?.toUpperCase()}
+                  {member.lastName
+                    ?.charAt(0)
+                    ?.toUpperCase()}
                 </Text>
               </View>
+
+              <View style={styles.staffInfo}>
+                <View style={styles.nameRow}>
+                  <Text style={styles.staffName}>
+                    {member.firstName}{" "}
+                    {member.lastName}
+                  </Text>
+
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      member.isActive
+                        ? styles.activeStatusBadge
+                        : styles.inactiveStatusBadge,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.statusDot,
+                        member.isActive
+                          ? styles.activeDot
+                          : styles.inactiveDot,
+                      ]}
+                    />
+
+                    <Text
+                      style={[
+                        styles.activeText,
+                        member.isActive
+                          ? styles.activeText
+                          : styles.inactiveText,
+                      ]}
+                    >
+                      {member.isActive
+                        ? "Active"
+                        : "Inactive"}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={styles.staffEmail}>
+                  {member.email}
+                </Text>
+
+                {member.phone && (
+                  <Text style={styles.staffPhone}>
+                    {member.phone}
+                  </Text>
+                )}
+
+                {/* WORKLOAD */}
+                <View style={styles.workloadCard}>
+                  <View style={styles.workloadHeader}>
+                    <Text style={styles.workloadTitle}>
+                      Complaint Workload
+                    </Text>
+
+                    <Text
+                      style={styles.workloadActiveText}
+                    >
+                      Active: {stats.activeWorkload}
+                    </Text>
+                  </View>
+
+                  <View style={styles.statsGrid}>
+                    <View style={styles.miniStat}>
+                      <Text style={styles.miniStatValue}>
+                        {stats.open}
+                      </Text>
+                      <Text style={styles.miniStatLabel}>
+                        Open
+                      </Text>
+                    </View>
+
+                    <View style={styles.miniStat}>
+                      <Text style={styles.miniStatValue}>
+                        {stats.assigned}
+                      </Text>
+                      <Text style={styles.miniStatLabel}>
+                        Assigned
+                      </Text>
+                    </View>
+
+                    <View style={styles.miniStat}>
+                      <Text style={styles.miniStatValue}>
+                        {stats.inProgress}
+                      </Text>
+                      <Text style={styles.miniStatLabel}>
+                        In Progress
+                      </Text>
+                    </View>
+
+                    <View style={styles.miniStat}>
+                      <Text style={styles.miniStatValue}>
+                        {stats.resolved}
+                      </Text>
+                      <Text style={styles.miniStatLabel}>
+                        Resolved
+                      </Text>
+                    </View>
+
+                    <View style={styles.miniStat}>
+                      <Text style={styles.miniStatValue}>
+                        {stats.closed}
+                      </Text>
+                      <Text style={styles.miniStatLabel}>
+                        Closed
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View
+                  style={styles.staffActionRow}
+                >
+                  <Text style={styles.roleText}>
+                    Maintenance Staff
+                  </Text>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.toggleButton,
+                      member.isActive
+                        ? styles.deactivateButton
+                        : styles.activateButton,
+                    ]}
+                    onPress={() =>
+                      handleToggleStatus(member)
+                    }
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.toggleButtonText,
+                        member.isActive
+                          ? styles.deactivateButtonText
+                          : styles.activateButtonText,
+                      ]}
+                    >
+                      {member.isActive
+                        ? "Deactivate"
+                        : "Activate"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
-          </View>
-        ))
+          );
+        })
       )}
     </ScrollView>
   );
@@ -854,6 +1092,150 @@ const styles = StyleSheet.create({
     color: "#64748B",
   },
 
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+
+  inactiveStaffCard: {
+    opacity: 0.92,
+  },
+
+  inactiveAvatar: {
+    backgroundColor: "#E2E8F0",
+  },
+
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+
+  activeStatusBadge: {
+    backgroundColor: "#DCFCE7",
+  },
+
+  inactiveStatusBadge: {
+    backgroundColor: "#FEE2E2",
+  },
+
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    marginRight: 5,
+  },
+
+  inactiveDot: {
+    backgroundColor: "#DC2626",
+  },
+
+  inactiveText: {
+    color: "#B91C1C",
+  },
+
+  workloadCard: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 10,
+  },
+
+  workloadHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+
+  workloadTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#334155",
+  },
+
+  workloadActiveText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#2563EB",
+  },
+
+  statsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+
+  miniStat: {
+    minWidth: 70,
+    flexGrow: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 9,
+    paddingVertical: 9,
+    paddingHorizontal: 8,
+    alignItems: "center",
+  },
+
+  miniStatValue: {
+    fontSize: 17,
+    fontWeight: "bold",
+    color: "#0F172A",
+  },
+
+  miniStatLabel: {
+    fontSize: 10,
+    color: "#64748B",
+    marginTop: 2,
+    textAlign: "center",
+  },
+
+  staffActionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 12,
+  },
+
+  toggleButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+
+  deactivateButton: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FCA5A5",
+  },
+
+  activateButton: {
+    backgroundColor: "#F0FDF4",
+    borderColor: "#86EFAC",
+  },
+
+  toggleButtonText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  deactivateButtonText: {
+    color: "#B91C1C",
+  },
+
+  activateButtonText: {
+    color: "#15803D",
+  },
+
+  totalStaffText: {
+    fontSize: 10,
+    color: "#64748B",
+    marginTop: 2,
+  },
+
   emptyCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
@@ -874,4 +1256,4 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
   },
-});
+});                                         

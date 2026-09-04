@@ -799,6 +799,147 @@ const updateComplaintStatus =
     }
   };
 
+  // ==========================================
+// ADMIN - CLOSE RESOLVED COMPLAINT
+// ==========================================
+
+const closeComplaint = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { remarks } = req.body;
+
+    // ------------------------------------------
+    // ONLY ADMIN CAN CLOSE
+    // ------------------------------------------
+
+    if (req.user.role !== "ADMIN") {
+      return res.status(403).json({
+        success: false,
+        message: "Only admin can close complaints",
+      });
+    }
+
+    // ------------------------------------------
+    // FIND COMPLAINT
+    // ------------------------------------------
+
+    const complaint =
+      await prisma.complaint.findUnique({
+        where: {
+          id,
+        },
+      });
+
+    if (!complaint) {
+      return res.status(404).json({
+        success: false,
+        message: "Complaint not found",
+      });
+    }
+
+    // ------------------------------------------
+    // ONLY RESOLVED COMPLAINT CAN BE CLOSED
+    // ------------------------------------------
+
+    if (complaint.status !== "RESOLVED") {
+      return res.status(400).json({
+        success: false,
+        message:
+          `Only RESOLVED complaints can be closed. Current status: ${complaint.status}`,
+      });
+    }
+
+    // ------------------------------------------
+    // CLOSE COMPLAINT
+    // ------------------------------------------
+
+    const result =
+      await prisma.$transaction(
+        async (tx) => {
+          // --------------------------------------
+          // CHANGE STATUS TO CLOSED
+          // --------------------------------------
+
+          const updatedComplaint =
+            await tx.complaint.update({
+              where: {
+                id,
+              },
+
+              data: {
+                status: "CLOSED",
+              },
+
+              include: complaintInclude,
+            });
+
+          // --------------------------------------
+          // CREATE STATUS HISTORY
+          // --------------------------------------
+
+          await tx.complaintStatusHistory.create({
+            data: {
+              complaintId: id,
+
+              oldStatus: "RESOLVED",
+
+              newStatus: "CLOSED",
+
+              changedBy: req.user.userId,
+
+              remarks:
+                remarks?.trim() ||
+                "Complaint reviewed and closed by Admin",
+            },
+          });
+
+          // --------------------------------------
+          // REMOVE ACTIVE ASSIGNMENT
+          //
+          // This means the complaint will no longer
+          // appear in Maintenance Staff's active
+          // complaint list.
+          // --------------------------------------
+
+          await tx.complaintAssignment.updateMany({
+            where: {
+              complaintId: id,
+
+              unassignedAt: null,
+            },
+
+            data: {
+              unassignedAt: new Date(),
+            },
+          });
+
+          return updatedComplaint;
+        }
+      );
+
+    return res.status(200).json({
+      success: true,
+
+      message:
+        "Complaint closed successfully",
+
+      data: result,
+    });
+
+  } catch (error) {
+    console.error(
+      "Close complaint error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+
+      message:
+        "Failed to close complaint",
+    });
+  }
+};
 
   // ==========================================
 // STUDENT - GET MY OWN COMPLAINTS
@@ -951,4 +1092,5 @@ module.exports = {
   getComplaintById,
   updateComplaintStatus,
   assignComplaint,
+  closeComplaint,
 };

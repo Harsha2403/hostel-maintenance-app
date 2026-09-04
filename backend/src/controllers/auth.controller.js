@@ -79,16 +79,198 @@ const createMaintenanceStaff = async (req, res) => {
   }
 };
 
-
 // ==========================================
 // Get All Maintenance Staff
 // ==========================================
 const getMaintenanceStaff = async (req, res) => {
   try {
+    // By default only active staff are returned.
+    // Admin staff-management screen can request inactive staff too.
+    const includeInactive =
+      req.query.includeInactive === "true";
+
     const staff = await prisma.user.findMany({
       where: {
         role: "MAINTENANCE_STAFF",
+        ...(includeInactive ? {} : { isActive: true }),
+      },
+
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        role: true,
         isActive: true,
+        createdAt: true,
+
+        // Current active assignment workload for this staff member.
+        // Only active assignments are counted.
+        assignedComplaints: {
+          where: {
+            unassignedAt: null,
+          },
+          select: {
+            complaint: {
+              select: {
+                status: true,
+              },
+            },
+          },
+        },
+      },
+
+      orderBy: [
+        { isActive: "desc" },
+        { firstName: "asc" },
+        { lastName: "asc" },
+      ],
+    });
+
+    const data = staff.map((member) => {
+      const counts = {
+        open: 0,
+        assigned: 0,
+        inProgress: 0,
+        resolved: 0,
+        closed: 0,
+      };
+
+      for (const assignment of member.assignedComplaints) {
+        switch (assignment.complaint.status) {
+          case "OPEN":
+            counts.open += 1;
+            break;
+
+          case "ASSIGNED":
+            counts.assigned += 1;
+            break;
+
+          case "IN_PROGRESS":
+            counts.inProgress += 1;
+            break;
+
+          case "RESOLVED":
+            counts.resolved += 1;
+            break;
+
+          case "CLOSED":
+            counts.closed += 1;
+            break;
+
+          default:
+            break;
+        }
+      }
+
+      // Work that is currently active
+      const activeWorkload =
+        counts.open +
+        counts.assigned +
+        counts.inProgress;
+
+      // All currently assigned complaints
+      const totalAssigned =
+        counts.open +
+        counts.assigned +
+        counts.inProgress +
+        counts.resolved +
+        counts.closed;
+
+      return {
+        id: member.id,
+        email: member.email,
+        firstName: member.firstName,
+        lastName: member.lastName,
+        phone: member.phone,
+        role: member.role,
+        isActive: member.isActive,
+        createdAt: member.createdAt,
+
+        complaintStats: {
+          open: counts.open,
+          assigned: counts.assigned,
+          inProgress: counts.inProgress,
+          resolved: counts.resolved,
+          closed: counts.closed,
+          activeWorkload,
+          totalAssigned,
+        },
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    console.error("Get maintenance staff error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch maintenance staff",
+    });
+  }
+};
+
+// ==========================================
+// Activate / Deactivate Maintenance Staff
+// ADMIN ONLY
+// ==========================================
+const updateMaintenanceStaffStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isActive } = req.body;
+
+    // Validate isActive
+    if (typeof isActive !== "boolean") {
+      return res.status(400).json({
+        success: false,
+        message: "isActive must be a boolean value",
+      });
+    }
+
+    // Find staff member
+    const staff = await prisma.user.findUnique({
+      where: {
+        id,
+      },
+      select: {
+        id: true,
+        role: true,
+        firstName: true,
+        lastName: true,
+        isActive: true,
+      },
+    });
+
+    // Make sure the user exists and is maintenance staff
+    if (!staff || staff.role !== "MAINTENANCE_STAFF") {
+      return res.status(404).json({
+        success: false,
+        message: "Maintenance staff member not found",
+      });
+    }
+
+    // Prevent admin from changing their own account.
+    // This is mainly defensive because this endpoint is
+    // intended for MAINTENANCE_STAFF only.
+    if (staff.id === req.user.userId) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot change your own account status",
+      });
+    }
+
+    // Update status
+    const updatedStaff = await prisma.user.update({
+      where: {
+        id,
+      },
+
+      data: {
+        isActive,
       },
 
       select: {
@@ -101,26 +283,29 @@ const getMaintenanceStaff = async (req, res) => {
         isActive: true,
         createdAt: true,
       },
-
-      orderBy: {
-        firstName: "asc",
-      },
     });
 
     return res.status(200).json({
       success: true,
-      data: staff,
+
+      message: isActive
+        ? "Maintenance staff activated successfully"
+        : "Maintenance staff deactivated successfully",
+
+      data: updatedStaff,
     });
   } catch (error) {
-    console.error("Get maintenance staff error:", error);
+    console.error(
+      "Update maintenance staff status error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch maintenance staff",
+      message: "Failed to update maintenance staff status",
     });
   }
 };
-
 
 // ==========================================
 // Student Self Registration
@@ -141,7 +326,6 @@ const studentRegister = async (req, res) => {
       year,
     } = req.body;
 
-
     // ==========================================
     // REQUIRED FIELD VALIDATION
     // ==========================================
@@ -161,7 +345,6 @@ const studentRegister = async (req, res) => {
       });
     }
 
-
     // ==========================================
     // GENDER VALIDATION
     // ==========================================
@@ -173,7 +356,6 @@ const studentRegister = async (req, res) => {
           "Gender must be either MALE or FEMALE",
       });
     }
-
 
     // ==========================================
     // CHECK EMAIL
@@ -192,7 +374,6 @@ const studentRegister = async (req, res) => {
         message: "Email already exists",
       });
     }
-
 
     // ==========================================
     // CHECK STUDENT NUMBER
@@ -213,7 +394,6 @@ const studentRegister = async (req, res) => {
       });
     }
 
-
     // ==========================================
     // PASSWORD VALIDATION
     // ==========================================
@@ -226,14 +406,12 @@ const studentRegister = async (req, res) => {
       });
     }
 
-
     // ==========================================
     // HASH PASSWORD
     // ==========================================
 
     const hashedPassword =
       await bcrypt.hash(password, 10);
-
 
     // ==========================================
     // CREATE USER + STUDENT
@@ -252,8 +430,6 @@ const studentRegister = async (req, res) => {
           student: {
             create: {
               studentNumber,
-
-              // Student gender
               gender,
 
               department:
@@ -281,7 +457,6 @@ const studentRegister = async (req, res) => {
         },
       });
 
-
     // ==========================================
     // SUCCESS RESPONSE
     // ==========================================
@@ -302,7 +477,6 @@ const studentRegister = async (req, res) => {
         status: student.student.status,
       },
     });
-
   } catch (error) {
     console.error(
       "Student registration error:",
@@ -317,7 +491,6 @@ const studentRegister = async (req, res) => {
   }
 };
 
-
 // ==========================================
 // Login
 // ==========================================
@@ -327,7 +500,6 @@ const login = async (req, res) => {
       email,
       password,
     } = req.body;
-
 
     // ==========================================
     // REQUIRED FIELD VALIDATION
@@ -340,7 +512,6 @@ const login = async (req, res) => {
           "Email and password are required",
       });
     }
-
 
     // ==========================================
     // FIND USER
@@ -357,7 +528,6 @@ const login = async (req, res) => {
         },
       });
 
-
     // ==========================================
     // USER NOT FOUND
     // ==========================================
@@ -370,13 +540,11 @@ const login = async (req, res) => {
       });
     }
 
-
     // ==========================================
     // ACCOUNT ACTIVE CHECK
     // ==========================================
 
     if (!user.isActive) {
-
       // Rejected student
       if (
         user.role === "STUDENT" &&
@@ -396,13 +564,11 @@ const login = async (req, res) => {
       });
     }
 
-
     // ==========================================
     // STUDENT APPROVAL CHECK
     // ==========================================
 
     if (user.role === "STUDENT") {
-
       // Student profile doesn't exist
       if (!user.student) {
         return res.status(403).json({
@@ -411,7 +577,6 @@ const login = async (req, res) => {
             "Student profile not found",
         });
       }
-
 
       // Pending approval
       if (
@@ -424,7 +589,6 @@ const login = async (req, res) => {
         });
       }
 
-
       // Rejected
       if (
         user.student.status === "REJECTED"
@@ -435,7 +599,6 @@ const login = async (req, res) => {
             "Your student registration has been rejected.",
         });
       }
-
 
       // Any other non-active status
       if (
@@ -448,7 +611,6 @@ const login = async (req, res) => {
         });
       }
     }
-
 
     // ==========================================
     // PASSWORD CHECK
@@ -468,7 +630,6 @@ const login = async (req, res) => {
       });
     }
 
-
     // ==========================================
     // CREATE JWT
     // ==========================================
@@ -487,7 +648,6 @@ const login = async (req, res) => {
           "7d",
       }
     );
-
 
     // ==========================================
     // LOGIN RESPONSE
@@ -515,7 +675,6 @@ const login = async (req, res) => {
         }),
       },
     });
-
   } catch (error) {
     console.error(
       "Login error:",
@@ -530,14 +689,13 @@ const login = async (req, res) => {
   }
 };
 
-
 // ==========================================
 // EXPORTS
 // ==========================================
-
 module.exports = {
   login,
   studentRegister,
   createMaintenanceStaff,
   getMaintenanceStaff,
+  updateMaintenanceStaffStatus,
 };

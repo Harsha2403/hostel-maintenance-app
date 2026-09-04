@@ -5,6 +5,7 @@ const {
   studentRegister,
   createMaintenanceStaff,
   getMaintenanceStaff,
+  updateMaintenanceStaffStatus,
 } = require("../controllers/auth.controller");
 
 const {
@@ -12,7 +13,6 @@ const {
 } = require("../middleware/auth.middleware");
 
 const router = express.Router();
-
 
 // ==========================================
 // LOGIN
@@ -68,7 +68,6 @@ const requireAdmin = (req, res, next) => {
   }
 };
 
-
 // ==========================================
 // CREATE MAINTENANCE STAFF
 // ADMIN ONLY
@@ -81,10 +80,18 @@ router.post(
   createMaintenanceStaff
 );
 
-
 // ==========================================
 // GET ALL MAINTENANCE STAFF
 // ADMIN ONLY
+//
+// Default:
+//   only active staff
+//
+// With:
+//   ?includeInactive=true
+//
+// Returns:
+//   active + inactive staff
 // ==========================================
 
 router.get(
@@ -94,5 +101,21 @@ router.get(
   getMaintenanceStaff
 );
 
+// ==========================================
+// ACTIVATE / DEACTIVATE
+// MAINTENANCE STAFF
+// ADMIN ONLY
+// ==========================================
+
+router.patch(
+  "/maintenance-staff/:id/status",
+  authenticateToken,
+  requireAdmin,
+  updateMaintenanceStaffStatus
+);
+
+// ==========================================
+// EXPORT ROUTER
+// ==========================================
 
 module.exports = router;

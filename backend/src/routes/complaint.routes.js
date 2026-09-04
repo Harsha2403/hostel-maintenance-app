@@ -10,6 +10,7 @@ const {
   getComplaintById,
   updateComplaintStatus,
   assignComplaint,
+  closeComplaint,
 } = require("../controllers/complaint.controller");
 
 const {
@@ -71,6 +72,14 @@ router.post(
   assignComplaint
 );
 
+// ==========================================
+// ADMIN - CLOSE RESOLVED COMPLAINT
+// ==========================================
+router.put(
+  "/:id/close",
+  authenticateToken,
+  closeComplaint
+);
 
 // ==========================================
 // MAINTENANCE STAFF - UPDATE STATUS

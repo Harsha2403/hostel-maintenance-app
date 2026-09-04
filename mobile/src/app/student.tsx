@@ -64,7 +64,7 @@ interface User {
   email: string;
   firstName: string;
   lastName: string;
-  phone: string;
+  phone?: string | null;
   isActive: boolean;
   role: string;
 }
@@ -323,6 +323,16 @@ export default function StudentDashboard() {
 
             <Text style={styles.detailValue}>
               {student?.gender || "N/A"}
+            </Text>
+          </View>
+
+          <View style={styles.detailItem}>
+            <Text style={styles.detailLabel}>
+              Phone Number
+            </Text>
+
+            <Text style={styles.detailValue}>
+              {student?.user?.phone || "Not provided"}
             </Text>
           </View>
         </View>
@@ -959,4 +969,4 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 16,
   },
-});
+});                                                    

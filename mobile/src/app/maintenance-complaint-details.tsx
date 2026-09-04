@@ -949,6 +949,147 @@ export default function MaintenanceComplaintDetails() {
       }
     };
 
+    // ==================================================
+// ADMIN - CLOSE COMPLAINT
+// ==================================================
+
+const handleCloseComplaint = async () => {
+  if (userRole !== "ADMIN") {
+    Alert.alert(
+      "Access Denied",
+      "Only admin can close complaints."
+    );
+    return;
+  }
+
+  if (!id) {
+    Alert.alert(
+      "Error",
+      "Complaint ID is missing."
+    );
+    return;
+  }
+
+  if (currentStatus !== "RESOLVED") {
+    Alert.alert(
+      "Cannot Close",
+      "Only a resolved complaint can be closed."
+    );
+    return;
+  }
+
+  Alert.alert(
+    "Close Complaint",
+    "Are you sure you want to close this resolved complaint?",
+    [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Close Complaint",
+        style: "destructive",
+
+        onPress: async () => {
+          try {
+            setUpdating(true);
+
+            const token =
+              await AsyncStorage.getItem("token");
+
+            if (!token) {
+              Alert.alert(
+                "Authentication Error",
+                "Please login again."
+              );
+              return;
+            }
+
+            const response =
+              await axios.put(
+                `${API_URL}/api/complaints/${id}/close`,
+                {
+                  remarks:
+                    remark.trim() ||
+                    "Complaint reviewed and closed by Admin.",
+                },
+                {
+                  headers: {
+                    Authorization:
+                      `Bearer ${token}`,
+
+                    "Content-Type":
+                      "application/json",
+                  },
+                }
+              );
+
+            console.log(
+              "Close complaint response:",
+              response.data
+            );
+
+            if (
+              response.data?.success === false
+            ) {
+              Alert.alert(
+                "Close Failed",
+                response.data?.message ||
+                  "Failed to close complaint."
+              );
+              return;
+            }
+
+            // Update screen immediately
+            setComplaint((previous) => {
+              if (!previous) {
+                return previous;
+              }
+
+              return {
+                ...previous,
+                status: "CLOSED",
+                assignments:
+                  previous.assignments?.map(
+                    (assignment) => ({
+                      ...assignment,
+                      unassignedAt:
+                        new Date().toISOString(),
+                    })
+                  ),
+              };
+            });
+
+            setRemark("");
+
+            Alert.alert(
+              "Complaint Closed",
+              "The complaint has been successfully closed."
+            );
+
+            await fetchComplaint();
+          } catch (error: any) {
+            console.log(
+              "Close complaint error:",
+              error?.response?.data ||
+                error?.message
+            );
+
+            Alert.alert(
+              "Error",
+              error?.response?.data?.message ||
+                error?.message ||
+                "Failed to close complaint."
+            );
+          } finally {
+            setUpdating(false);
+          }
+        },
+      },
+    ]
+  );
+};
+
   // ==================================================
   // REFRESH
   // ==================================================
@@ -1864,30 +2005,97 @@ export default function MaintenanceComplaintDetails() {
         </>
       )}
 
-      {/* =================================================
-          ADMIN INFORMATION
-      ================================================= */}
+{/* =================================================
+    ADMIN ACTIONS
+================================================= */}
 
-      {isAdmin && (
+{isAdmin && (
+  <>
+    {/* ==========================================
+        ADMIN INFORMATION
+    ========================================== */}
 
-        <View
-          style={
-            styles.adminCard
-          }
+    <View
+      style={styles.adminCard}
+    >
+      <Text
+        style={styles.adminText}
+      >
+        Admin access: You can manage
+        complaint assignment and close
+        resolved complaints.
+      </Text>
+    </View>
+
+    {/* ==========================================
+        CLOSE COMPLAINT
+        ADMIN ONLY
+        RESOLVED ONLY
+    ========================================== */}
+
+    {currentStatus === "RESOLVED" && (
+      <View style={styles.card}>
+
+        <Text
+          style={styles.sectionTitle}
         >
+          Complaint Closure
+        </Text>
 
-          <Text
-            style={
-              styles.adminText
-            }
-          >
-            Admin access: You can assign
-            this complaint to a maintenance
-            staff member.
-          </Text>
+        <Text
+          style={styles.closeDescription}
+        >
+          This complaint has been marked as
+          resolved by the maintenance staff.
+          Admin can now review and close it.
+        </Text>
 
-        </View>
-      )}
+        <TouchableOpacity
+          activeOpacity={0.8}
+          style={[
+            styles.closeButton,
+            updating &&
+              styles.disabledButton,
+          ]}
+          onPress={
+            handleCloseComplaint
+          }
+          disabled={updating}
+        >
+          {updating ? (
+            <View
+              style={
+                styles.loadingButtonContent
+              }
+            >
+              <ActivityIndicator
+                color="#FFFFFF"
+              />
+
+              <Text
+                style={[
+                  styles.buttonText,
+                  {
+                    marginLeft: 10,
+                  },
+                ]}
+              >
+                Closing...
+              </Text>
+            </View>
+          ) : (
+            <Text
+              style={styles.buttonText}
+            >
+              ✓ Close Complaint
+            </Text>
+          )}
+        </TouchableOpacity>
+
+      </View>
+    )}
+  </>
+)}
 
       {/* =================================================
           CURRENT STATUS
@@ -2346,6 +2554,22 @@ const styles =
       fontSize: 15,
       lineHeight: 22,
     },
+
+    closeDescription: {
+  fontSize: 15,
+  color: "#64748B",
+  lineHeight: 22,
+  marginBottom: 15,
+},
+
+closeButton: {
+  backgroundColor: "#DC2626",
+  paddingVertical: 16,
+  borderRadius: 10,
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 52,
+},
 
     // ================================================
     // GENERAL BUTTON
