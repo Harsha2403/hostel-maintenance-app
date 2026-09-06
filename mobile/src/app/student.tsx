@@ -59,6 +59,19 @@ interface RoomAllocation {
   room: Room;
 }
 
+interface ParentContact {
+  id: string;
+  studentId: string;
+  name: string;
+  relationship: string;
+  phone: string;
+  email?: string | null;
+  isPrimary: boolean;
+  isEmergencyContact: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 interface User {
   id: string;
   email: string;
@@ -80,6 +93,7 @@ interface Student {
   status: string;
   user: User;
   roomAllocations: RoomAllocation[];
+  parentContacts: ParentContact[];
 }
 
 interface StudentResponse {
@@ -93,9 +107,14 @@ interface StudentResponse {
 // ==========================================================
 
 export default function StudentDashboard() {
-  const [student, setStudent] = useState<Student | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [student, setStudent] =
+    useState<Student | null>(null);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState("");
 
   // ========================================================
   // FETCH LOGGED-IN STUDENT
@@ -106,39 +125,61 @@ export default function StudentDashboard() {
       setLoading(true);
       setError("");
 
-      const token = await AsyncStorage.getItem("token");
+      const token =
+        await AsyncStorage.getItem("token");
 
       if (!token) {
         router.replace("/login");
         return;
       }
 
-      const response = await fetch(`${API_URL}/api/students/me`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
+      const response = await fetch(
+        `${API_URL}/api/students/me`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
-      const result: StudentResponse = await response.json();
+      const result: StudentResponse =
+        await response.json();
 
-      if (!response.ok || !result.success) {
+      if (
+        !response.ok ||
+        !result.success
+      ) {
         throw new Error(
-          result.message || "Failed to fetch student profile"
+          result.message ||
+            "Failed to fetch student profile"
         );
       }
 
       if (!result.data) {
-        throw new Error("Student profile not found");
+        throw new Error(
+          "Student profile not found"
+        );
       }
 
-      setStudent(result.data);
+      // Make sure parentContacts always exists
+      const studentData: Student = {
+        ...result.data,
+        parentContacts:
+          result.data.parentContacts || [],
+      };
+
+      setStudent(studentData);
     } catch (err: any) {
-      console.error("Student profile error:", err);
+      console.error(
+        "Student profile error:",
+        err
+      );
 
       setError(
-        err?.message || "Unable to load student dashboard"
+        err?.message ||
+          "Unable to load student dashboard"
       );
     } finally {
       setLoading(false);
@@ -164,7 +205,10 @@ export default function StudentDashboard() {
 
       router.replace("/login");
     } catch (error) {
-      console.error("Logout error:", error);
+      console.error(
+        "Logout error:",
+        error
+      );
     }
   };
 
@@ -174,10 +218,17 @@ export default function StudentDashboard() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563EB" />
+      <View
+        style={styles.loadingContainer}
+      >
+        <ActivityIndicator
+          size="large"
+          color="#2563EB"
+        />
 
-        <Text style={styles.loadingText}>
+        <Text
+          style={styles.loadingText}
+        >
           Loading your dashboard...
         </Text>
       </View>
@@ -190,29 +241,43 @@ export default function StudentDashboard() {
 
   if (error) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.errorTitle}>
+      <View
+        style={styles.loadingContainer}
+      >
+        <Text
+          style={styles.errorTitle}
+        >
           Unable to load dashboard
         </Text>
 
-        <Text style={styles.errorText}>
+        <Text
+          style={styles.errorText}
+        >
           {error}
         </Text>
 
         <TouchableOpacity
           style={styles.retryButton}
-          onPress={fetchStudentProfile}
+          onPress={
+            fetchStudentProfile
+          }
         >
-          <Text style={styles.retryButtonText}>
+          <Text
+            style={styles.retryButtonText}
+          >
             Retry
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.errorLogoutButton}
+          style={
+            styles.errorLogoutButton
+          }
           onPress={handleLogout}
         >
-          <Text style={styles.logoutText}>
+          <Text
+            style={styles.logoutText}
+          >
             Logout
           </Text>
         </TouchableOpacity>
@@ -226,13 +291,28 @@ export default function StudentDashboard() {
 
   const activeAllocation =
     student?.roomAllocations?.find(
-      (allocation) => allocation.status === "ACTIVE"
+      (allocation) =>
+        allocation.status === "ACTIVE"
     );
 
-  const room = activeAllocation?.room;
-  const floor = room?.floor;
-  const block = floor?.block;
-  const hostelBuilding = block?.hostelBuilding;
+  const room =
+    activeAllocation?.room;
+
+  const floor =
+    room?.floor;
+
+  const block =
+    floor?.block;
+
+  const hostelBuilding =
+    block?.hostelBuilding;
+
+  // ========================================================
+  // PARENT CONTACT DATA
+  // ========================================================
+
+  const parentContacts =
+    student?.parentContacts || [];
 
   // ========================================================
   // DASHBOARD
@@ -241,7 +321,9 @@ export default function StudentDashboard() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.contentContainer}
+      contentContainerStyle={
+        styles.contentContainer
+      }
       showsVerticalScrollIndicator={false}
     >
       {/* ==================================================
@@ -249,13 +331,18 @@ export default function StudentDashboard() {
       ================================================== */}
 
       <View style={styles.header}>
-        <Text style={styles.title}>
+        <Text
+          style={styles.title}
+        >
           Student Dashboard
         </Text>
 
-        <Text style={styles.subtitle}>
+        <Text
+          style={styles.subtitle}
+        >
           Welcome,{" "}
-          {student?.user?.firstName || "Student"}!
+          {student?.user?.firstName ||
+            "Student"}!
         </Text>
       </View>
 
@@ -263,76 +350,128 @@ export default function StudentDashboard() {
           PROFILE CARD
       ================================================== */}
 
-      <View style={styles.profileCard}>
-        <View style={styles.profileHeader}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
+      <View
+        style={styles.profileCard}
+      >
+        <View
+          style={styles.profileHeader}
+        >
+          <View
+            style={styles.avatar}
+          >
+            <Text
+              style={styles.avatarText}
+            >
               {student?.user?.firstName
                 ?.charAt(0)
                 ?.toUpperCase() || "S"}
             </Text>
           </View>
 
-          <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>
+          <View
+            style={styles.profileInfo}
+          >
+            <Text
+              style={styles.profileName}
+            >
               {student?.user?.firstName}{" "}
               {student?.user?.lastName}
             </Text>
 
-            <Text style={styles.profileNumber}>
+            <Text
+              style={
+                styles.profileNumber
+              }
+            >
               {student?.studentNumber}
             </Text>
           </View>
         </View>
 
-        <View style={styles.profileDetails}>
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>
+        <View
+          style={styles.profileDetails}
+        >
+          <View
+            style={styles.detailItem}
+          >
+            <Text
+              style={styles.detailLabel}
+            >
               Department
             </Text>
 
-            <Text style={styles.detailValue}>
-              {student?.department || "N/A"}
+            <Text
+              style={styles.detailValue}
+            >
+              {student?.department ||
+                "N/A"}
             </Text>
           </View>
 
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>
+          <View
+            style={styles.detailItem}
+          >
+            <Text
+              style={styles.detailLabel}
+            >
               Course
             </Text>
 
-            <Text style={styles.detailValue}>
-              {student?.course || "N/A"}
+            <Text
+              style={styles.detailValue}
+            >
+              {student?.course ||
+                "N/A"}
             </Text>
           </View>
 
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>
+          <View
+            style={styles.detailItem}
+          >
+            <Text
+              style={styles.detailLabel}
+            >
               Year
             </Text>
 
-            <Text style={styles.detailValue}>
+            <Text
+              style={styles.detailValue}
+            >
               {student?.year ?? "N/A"}
             </Text>
           </View>
 
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>
+          <View
+            style={styles.detailItem}
+          >
+            <Text
+              style={styles.detailLabel}
+            >
               Gender
             </Text>
 
-            <Text style={styles.detailValue}>
-              {student?.gender || "N/A"}
+            <Text
+              style={styles.detailValue}
+            >
+              {student?.gender ||
+                "N/A"}
             </Text>
           </View>
 
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>
+          <View
+            style={styles.detailItem}
+          >
+            <Text
+              style={styles.detailLabel}
+            >
               Phone Number
             </Text>
 
-            <Text style={styles.detailValue}>
-              {student?.user?.phone || "Not provided"}
+            <Text
+              style={styles.detailValue}
+            >
+              {student?.user?.phone ||
+                "Not provided"}
             </Text>
           </View>
         </View>
@@ -343,19 +482,33 @@ export default function StudentDashboard() {
       ================================================== */}
 
       <View style={styles.roomCard}>
-        <View style={styles.roomHeader}>
-          <View style={styles.roomHeaderText}>
-            <Text style={styles.roomTitle}>
+        <View
+          style={styles.roomHeader}
+        >
+          <View
+            style={styles.roomHeaderText}
+          >
+            <Text
+              style={styles.roomTitle}
+            >
               My Room
             </Text>
 
-            <Text style={styles.roomSubtitle}>
+            <Text
+              style={styles.roomSubtitle}
+            >
               Your current hostel allocation
             </Text>
           </View>
 
-          <View style={styles.roomIconContainer}>
-            <Text style={styles.roomIcon}>
+          <View
+            style={
+              styles.roomIconContainer
+            }
+          >
+            <Text
+              style={styles.roomIcon}
+            >
               🏠
             </Text>
           </View>
@@ -365,72 +518,119 @@ export default function StudentDashboard() {
           <>
             {/* HOSTEL */}
 
-            <View style={styles.roomRow}>
-              <Text style={styles.roomLabel}>
+            <View
+              style={styles.roomRow}
+            >
+              <Text
+                style={styles.roomLabel}
+              >
                 Hostel
               </Text>
 
-              <Text style={styles.roomValue}>
-                {hostelBuilding?.name || "N/A"}
+              <Text
+                style={styles.roomValue}
+              >
+                {hostelBuilding?.name ||
+                  "N/A"}
               </Text>
             </View>
 
             {/* BLOCK */}
 
-            <View style={styles.roomRow}>
-              <Text style={styles.roomLabel}>
+            <View
+              style={styles.roomRow}
+            >
+              <Text
+                style={styles.roomLabel}
+              >
                 Block
               </Text>
 
-              <Text style={styles.roomValue}>
-                {block?.name || "N/A"}
+              <Text
+                style={styles.roomValue}
+              >
+                {block?.name ||
+                  "N/A"}
               </Text>
             </View>
 
             {/* FLOOR */}
 
-            <View style={styles.roomRow}>
-              <Text style={styles.roomLabel}>
+            <View
+              style={styles.roomRow}
+            >
+              <Text
+                style={styles.roomLabel}
+              >
                 Floor
               </Text>
 
-              <Text style={styles.roomValue}>
+              <Text
+                style={styles.roomValue}
+              >
                 {floor?.name ||
-                  `Floor ${floor?.floorNumber ?? "N/A"}`}
+                  `Floor ${
+                    floor?.floorNumber ??
+                    "N/A"
+                  }`}
               </Text>
             </View>
 
             {/* ROOM NUMBER */}
 
-            <View style={styles.roomNumberSection}>
-              <Text style={styles.roomNumberLabel}>
+            <View
+              style={
+                styles.roomNumberSection
+              }
+            >
+              <Text
+                style={
+                  styles.roomNumberLabel
+                }
+              >
                 Room Number
               </Text>
 
-              <Text style={styles.roomNumber}>
+              <Text
+                style={styles.roomNumber}
+              >
                 {room.roomNumber}
               </Text>
             </View>
 
             {/* ROOM INFORMATION */}
 
-            <View style={styles.roomStats}>
-              <View style={styles.statBox}>
-                <Text style={styles.statLabel}>
+            <View
+              style={styles.roomStats}
+            >
+              <View
+                style={styles.statBox}
+              >
+                <Text
+                  style={styles.statLabel}
+                >
                   Capacity
                 </Text>
 
-                <Text style={styles.statValue}>
+                <Text
+                  style={styles.statValue}
+                >
                   {room.capacity}
                 </Text>
               </View>
 
-              <View style={styles.statBox}>
-                <Text style={styles.statLabel}>
+              <View
+                style={styles.statBox}
+              >
+                <Text
+                  style={styles.statLabel}
+                >
                   Allocation
                 </Text>
 
-                <Text style={styles.allocatedText}>
+                <Text
+                  style={styles.allocatedText}
+                >
                   Active
                 </Text>
               </View>
@@ -438,30 +638,254 @@ export default function StudentDashboard() {
 
             {/* GENDER COMPATIBILITY */}
 
-            <View style={styles.genderInfo}>
-              <Text style={styles.genderInfoLabel}>
+            <View
+              style={styles.genderInfo}
+            >
+              <Text
+                style={
+                  styles.genderInfoLabel
+                }
+              >
                 Block Type
               </Text>
 
-              <Text style={styles.genderInfoValue}>
+              <Text
+                style={
+                  styles.genderInfoValue
+                }
+              >
                 {block?.type || "N/A"}
               </Text>
             </View>
           </>
         ) : (
-          <View style={styles.noRoomContainer}>
-            <Text style={styles.noRoomIcon}>
+          <View
+            style={styles.noRoomContainer}
+          >
+            <Text
+              style={styles.noRoomIcon}
+            >
               🛏️
             </Text>
 
-            <Text style={styles.noRoomTitle}>
+            <Text
+              style={styles.noRoomTitle}
+            >
               Room not allocated yet
             </Text>
 
-            <Text style={styles.noRoomText}>
-              Your hostel room has not been assigned
-              yet. Please contact the hostel
-              administration.
+            <Text
+              style={styles.noRoomText}
+            >
+              Your hostel room has not been
+              assigned yet. Please contact
+              the hostel administration.
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* ==================================================
+          PARENT / GUARDIAN CONTACTS
+      ================================================== */}
+
+      <View
+        style={styles.parentCard}
+      >
+        <View
+          style={styles.parentHeader}
+        >
+          <View
+            style={styles.parentHeaderText}
+          >
+            <Text
+              style={styles.parentTitle}
+            >
+              Parent / Guardian Contacts
+            </Text>
+
+            <Text
+              style={styles.parentSubtitle}
+            >
+              Official contact information
+              maintained by hostel
+              administration
+            </Text>
+          </View>
+
+          <View
+            style={
+              styles.parentIconContainer
+            }
+          >
+            <Text
+              style={styles.parentIcon}
+            >
+              👨‍👩‍👧
+            </Text>
+          </View>
+        </View>
+
+        {parentContacts.length > 0 ? (
+          parentContacts.map(
+            (contact) => (
+              <View
+                key={contact.id}
+                style={
+                  styles.parentContactBox
+                }
+              >
+                {/* CONTACT HEADER */}
+
+                <View
+                  style={
+                    styles.parentContactHeader
+                  }
+                >
+                  <View
+                    style={
+                      styles.parentContactNameContainer
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.parentContactName
+                      }
+                    >
+                      {contact.name}
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.parentRelationship
+                      }
+                    >
+                      {contact.relationship}
+                    </Text>
+                  </View>
+
+                  {contact.isPrimary && (
+                    <View
+                      style={
+                        styles.primaryBadge
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.primaryBadgeText
+                        }
+                      >
+                        Primary
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* PHONE */}
+
+                <View
+                  style={
+                    styles.parentDetailRow
+                  }
+                >
+                  <Text
+                    style={
+                      styles.parentDetailLabel
+                    }
+                  >
+                    Phone
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.parentDetailValue
+                    }
+                  >
+                    {contact.phone ||
+                      "Not provided"}
+                  </Text>
+                </View>
+
+                {/* EMAIL */}
+
+                <View
+                  style={
+                    styles.parentDetailRow
+                  }
+                >
+                  <Text
+                    style={
+                      styles.parentDetailLabel
+                    }
+                  >
+                    Email
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.parentDetailValue
+                    }
+                  >
+                    {contact.email ||
+                      "Not provided"}
+                  </Text>
+                </View>
+
+                {/* EMERGENCY CONTACT */}
+
+                <View
+                  style={
+                    styles.parentDetailRow
+                  }
+                >
+                  <Text
+                    style={
+                      styles.parentDetailLabel
+                    }
+                  >
+                    Emergency Contact
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.parentDetailValue,
+                      contact.isEmergencyContact &&
+                        styles.emergencyContactText,
+                    ]}
+                  >
+                    {contact.isEmergencyContact
+                      ? "Yes"
+                      : "No"}
+                  </Text>
+                </View>
+              </View>
+            )
+          )
+        ) : (
+          <View
+            style={
+              styles.noParentContainer
+            }
+          >
+            <Text
+              style={styles.noParentIcon}
+            >
+              👤
+            </Text>
+
+            <Text
+              style={styles.noParentTitle}
+            >
+              No parent contact available
+            </Text>
+
+            <Text
+              style={styles.noParentText}
+            >
+              Parent or guardian contact
+              details have not been added
+              by the hostel administration
+              yet.
             </Text>
           </View>
         )}
@@ -474,23 +898,36 @@ export default function StudentDashboard() {
       <TouchableOpacity
         style={styles.card}
         onPress={() =>
-          router.push("/create-complaint")
+          router.push(
+            "/create-complaint"
+          )
         }
         activeOpacity={0.8}
       >
-        <View style={styles.cardIconContainer}>
+        <View
+          style={
+            styles.cardIconContainer
+          }
+        >
           <Text style={styles.cardIcon}>
             🛠️
           </Text>
         </View>
 
-        <View style={styles.cardContent}>
-          <Text style={styles.cardTitle}>
+        <View
+          style={styles.cardContent}
+        >
+          <Text
+            style={styles.cardTitle}
+          >
             Raise a Complaint
           </Text>
 
-          <Text style={styles.cardText}>
-            Report an issue in your hostel room.
+          <Text
+            style={styles.cardText}
+          >
+            Report an issue in your hostel
+            room.
           </Text>
         </View>
       </TouchableOpacity>
@@ -502,24 +939,36 @@ export default function StudentDashboard() {
       <TouchableOpacity
         style={styles.card}
         onPress={() =>
-          router.push("/my-complaints")
+          router.push(
+            "/my-complaints"
+          )
         }
         activeOpacity={0.8}
       >
-        <View style={styles.cardIconContainer}>
+        <View
+          style={
+            styles.cardIconContainer
+          }
+        >
           <Text style={styles.cardIcon}>
             📋
           </Text>
         </View>
 
-        <View style={styles.cardContent}>
-          <Text style={styles.cardTitle}>
+        <View
+          style={styles.cardContent}
+        >
+          <Text
+            style={styles.cardTitle}
+          >
             My Complaints
           </Text>
 
-          <Text style={styles.cardText}>
-            Track the status of your maintenance
-            requests.
+          <Text
+            style={styles.cardText}
+          >
+            Track the status of your
+            maintenance requests.
           </Text>
         </View>
       </TouchableOpacity>
@@ -533,7 +982,9 @@ export default function StudentDashboard() {
         onPress={handleLogout}
         activeOpacity={0.8}
       >
-        <Text style={styles.logoutText}>
+        <Text
+          style={styles.logoutText}
+        >
           Logout
         </Text>
       </TouchableOpacity>
@@ -900,6 +1351,161 @@ const styles = StyleSheet.create({
   },
 
   // ========================================================
+  // PARENT / GUARDIAN CONTACTS
+  // ========================================================
+
+  parentCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 18,
+
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.06,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+
+  parentHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 18,
+  },
+
+  parentHeaderText: {
+    flex: 1,
+    paddingRight: 12,
+  },
+
+  parentTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#0F172A",
+  },
+
+  parentSubtitle: {
+    fontSize: 13,
+    color: "#64748B",
+    marginTop: 5,
+    lineHeight: 19,
+  },
+
+  parentIconContainer: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: "#EFF6FF",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  parentIcon: {
+    fontSize: 23,
+  },
+
+  parentContactBox: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+
+  parentContactHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 12,
+  },
+
+  parentContactNameContainer: {
+    flex: 1,
+    paddingRight: 10,
+  },
+
+  parentContactName: {
+    fontSize: 17,
+    fontWeight: "bold",
+    color: "#0F172A",
+  },
+
+  parentRelationship: {
+    fontSize: 13,
+    color: "#64748B",
+    marginTop: 3,
+  },
+
+  primaryBadge: {
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+
+  primaryBadgeText: {
+    color: "#166534",
+    fontSize: 11,
+    fontWeight: "bold",
+  },
+
+  parentDetailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
+  },
+
+  parentDetailLabel: {
+    fontSize: 13,
+    color: "#64748B",
+    flex: 1,
+  },
+
+  parentDetailValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#0F172A",
+    flex: 1.5,
+    textAlign: "right",
+  },
+
+  emergencyContactText: {
+    color: "#DC2626",
+  },
+
+  noParentContainer: {
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+
+  noParentIcon: {
+    fontSize: 36,
+    marginBottom: 10,
+  },
+
+  noParentTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#0F172A",
+    textAlign: "center",
+  },
+
+  noParentText: {
+    marginTop: 7,
+    fontSize: 13,
+    lineHeight: 20,
+    color: "#64748B",
+    textAlign: "center",
+  },
+
+  // ========================================================
   // ACTION CARDS
   // ========================================================
 
@@ -969,4 +1575,4 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 16,
   },
-});                                                    
+});

@@ -444,6 +444,8 @@ const getMyStudentProfile = async (req, res) => {
           },
         },
 
+        parentContacts: true,
+
         roomAllocations: {
           where: {
             status: "ACTIVE",
