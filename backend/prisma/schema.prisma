@@ -107,7 +107,7 @@ model Student {
   id              String           @id @default(uuid())
   userId          String           @unique
   studentNumber   String           @unique
-  gender          Gender
+  gender          Gender           @map("Gender")
   department      String?
   course          String?
   year            Int?
@@ -125,20 +125,52 @@ model Student {
 }
 
 model ParentContact {
-  id                 String               @id @default(uuid())
+  id                 String  @id @default(uuid())
   studentId          String
   name               String
   relationship       String
   phone              String
   email              String?
-  isPrimary          Boolean              @default(false)
-  isEmergencyContact Boolean              @default(false)
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  student            Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  notifications      ParentNotification[]
+  isPrimary          Boolean @default(false)
+  isEmergencyContact Boolean @default(false)
 
+  // Parent phone verification
+  phoneVerified   Boolean   @default(false)
+  phoneVerifiedAt DateTime?
+
+  // Admin approval workflow
+  status          ParentContactStatus @default(PENDING)
+  approvedAt      DateTime?
+  approvedBy      String?
+  rejectionReason String?
+
+  createdAt        DateTime                       @default(now())
+  updatedAt        DateTime                       @updatedAt
+  student          Student                        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  notifications    ParentNotification[]
+  otpVerifications ParentContactOtpVerification[]
+
+  @@index([studentId])
+  @@index([phone])
+  @@index([status])
   @@map("parent_contacts")
+}
+
+model ParentContactOtpVerification {
+  id              String    @id @default(uuid())
+  parentContactId String
+  otpHash         String
+  expiresAt       DateTime
+  attempts        Int       @default(0)
+  verifiedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  parentContact ParentContact @relation(fields: [parentContactId], references: [id], onDelete: Cascade)
+
+  @@index([parentContactId])
+  @@index([expiresAt])
+  @@map("parent_contact_otp_verifications")
 }
 
 model RoomAllocation {
@@ -436,6 +468,13 @@ enum EmergencyStatus {
   ACKNOWLEDGED
   RESOLVED
   CLOSED
+}
+
+enum ParentContactStatus {
+  PENDING
+  PHONE_VERIFIED
+  APPROVED
+  REJECTED
 }
 
 enum ParentNotificationType {

@@ -37,6 +37,47 @@ type PendingStudent = {
   };
 };
 
+
+type ParentContactStatus =
+  | "PENDING"
+  | "PHONE_VERIFIED"
+  | "APPROVED"
+  | "REJECTED";
+
+type PendingParentContact = {
+  id: string;
+  studentId: string;
+  name: string;
+  relationship: string;
+  phone: string;
+  email?: string | null;
+  isPrimary: boolean;
+  isEmergencyContact: boolean;
+  phoneVerified: boolean;
+  phoneVerifiedAt?: string | null;
+  status: ParentContactStatus;
+  approvedAt?: string | null;
+  approvedBy?: string | null;
+  rejectionReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  student?: {
+    id: string;
+    studentNumber: string;
+    gender: "MALE" | "FEMALE";
+    department?: string | null;
+    course?: string | null;
+    year?: number | null;
+    user?: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+      phone?: string | null;
+    };
+  };
+};
+
 export default function AdminDashboard() {
   const router = useRouter();
 
@@ -47,6 +88,15 @@ export default function AdminDashboard() {
     useState(true);
 
   const [processingStudentId, setProcessingStudentId] =
+    useState<string | null>(null);
+
+  const [pendingParentContacts, setPendingParentContacts] =
+    useState<PendingParentContact[]>([]);
+
+  const [loadingParentContacts, setLoadingParentContacts] =
+    useState(true);
+
+  const [processingParentId, setProcessingParentId] =
     useState<string | null>(null);
 
   // ==========================================================
@@ -88,6 +138,7 @@ export default function AdminDashboard() {
       }
 
       loadPendingStudents();
+      loadPendingParentContacts();
     } catch (error) {
       console.log(
         "Admin session error:",
@@ -414,6 +465,233 @@ export default function AdminDashboard() {
         null
       );
     }
+  };
+
+  // ==========================================================
+  // LOAD PENDING PARENT CONTACTS
+  // ==========================================================
+
+  const loadPendingParentContacts = async () => {
+    try {
+      setLoadingParentContacts(true);
+
+      const token =
+        await AsyncStorage.getItem("token");
+
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+
+      const response = await axios.get(
+        `${API_URL}/api/parent-contacts/pending`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.data?.success) {
+        setPendingParentContacts(
+          response.data.data || []
+        );
+      } else {
+        setPendingParentContacts([]);
+      }
+    } catch (error: any) {
+      console.log(
+        "Load pending parent contacts error:",
+        error?.response?.data || error
+      );
+
+      if (error?.response?.status === 401) {
+        await AsyncStorage.multiRemove([
+          "token",
+          "user",
+        ]);
+        router.replace("/login");
+        return;
+      }
+
+      Alert.alert(
+        "Error",
+        error?.response?.data?.message ||
+          "Unable to load parent verification requests."
+      );
+    } finally {
+      setLoadingParentContacts(false);
+    }
+  };
+
+  // ==========================================================
+  // APPROVE PARENT CONTACT
+  // ==========================================================
+
+  const handleApproveParent = async (
+    contact: PendingParentContact
+  ) => {
+    try {
+      setProcessingParentId(contact.id);
+
+      const token =
+        await AsyncStorage.getItem("token");
+
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+
+      if (!contact.phoneVerified) {
+        Alert.alert(
+          "Cannot Approve",
+          "The parent's mobile number has not been verified yet."
+        );
+        return;
+      }
+
+      const response = await axios.put(
+        `${API_URL}/api/parent-contacts/${contact.id}/approve`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.data?.success) {
+        setPendingParentContacts((current) =>
+          current.filter(
+            (item) => item.id !== contact.id
+          )
+        );
+
+        Alert.alert(
+          "Parent Approved",
+          `${contact.name} has been approved successfully.`
+        );
+      } else {
+        Alert.alert(
+          "Approval Failed",
+          response.data?.message ||
+            "Unable to approve parent contact."
+        );
+      }
+    } catch (error: any) {
+      console.log(
+        "Approve parent contact error:",
+        error?.response?.data || error
+      );
+
+      if (error?.response?.status === 401) {
+        await AsyncStorage.multiRemove([
+          "token",
+          "user",
+        ]);
+        router.replace("/login");
+        return;
+      }
+
+      Alert.alert(
+        "Approval Failed",
+        error?.response?.data?.message ||
+          error?.message ||
+          "Unable to approve parent contact."
+      );
+    } finally {
+      setProcessingParentId(null);
+    }
+  };
+
+  // ==========================================================
+  // REJECT PARENT CONTACT
+  // ==========================================================
+
+  const handleRejectParent = async (
+    contact: PendingParentContact
+  ) => {
+    Alert.prompt(
+      "Reject Parent Contact",
+      "Enter the reason for rejection:",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Reject",
+          style: "destructive",
+          onPress: async (reason?: string) => {
+            try {
+              setProcessingParentId(contact.id);
+
+              const token =
+                await AsyncStorage.getItem("token");
+
+              if (!token) {
+                router.replace("/login");
+                return;
+              }
+
+              const response = await axios.put(
+                `${API_URL}/api/parent-contacts/${contact.id}/reject`,
+                {
+                  rejectionReason:
+                    reason?.trim() ||
+                    "Rejected by Admin",
+                },
+                {
+                  headers: {
+                    Authorization:
+                      `Bearer ${token}`,
+                    "Content-Type":
+                      "application/json",
+                  },
+                }
+              );
+
+              if (response.data?.success) {
+                setPendingParentContacts(
+                  (current) =>
+                    current.filter(
+                      (item) =>
+                        item.id !== contact.id
+                    )
+                );
+
+                Alert.alert(
+                  "Parent Rejected",
+                  `${contact.name} has been rejected.`
+                );
+              } else {
+                Alert.alert(
+                  "Rejection Failed",
+                  response.data?.message ||
+                    "Unable to reject parent contact."
+                );
+              }
+            } catch (error: any) {
+              console.log(
+                "Reject parent contact error:",
+                error?.response?.data || error
+              );
+
+              Alert.alert(
+                "Rejection Failed",
+                error?.response?.data?.message ||
+                  error?.message ||
+                  "Unable to reject parent contact."
+              );
+            } finally {
+              setProcessingParentId(null);
+            }
+          },
+        },
+      ],
+      "plain-text"
+    );
   };
 
   // ==========================================================
@@ -1013,6 +1291,244 @@ export default function AdminDashboard() {
 
 
       {/* ====================================================
+          PARENT VERIFICATION REQUESTS
+      ==================================================== */}
+
+      <View style={styles.parentSectionHeader}>
+        <View style={styles.sectionHeaderText}>
+          <Text style={styles.sectionTitle}>
+            Parent Verification Requests
+          </Text>
+
+          <Text style={styles.sectionSubtitle}>
+            Review verified parent contacts before they become
+            official hostel records
+          </Text>
+        </View>
+
+        <View style={styles.parentCountBadge}>
+          <Text style={styles.parentCountText}>
+            {pendingParentContacts.length}
+          </Text>
+        </View>
+      </View>
+
+      {loadingParentContacts ? (
+        <View style={styles.loadingCard}>
+          <ActivityIndicator
+            size="large"
+            color="#2563EB"
+          />
+
+          <Text style={styles.loadingText}>
+            Loading parent requests...
+          </Text>
+        </View>
+      ) : pendingParentContacts.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <View style={styles.emptyIconCircle}>
+            <Text style={styles.emptyIcon}>
+              ✓
+            </Text>
+          </View>
+
+          <Text style={styles.emptyTitle}>
+            No Parent Requests
+          </Text>
+
+          <Text style={styles.emptyText}>
+            There are currently no parent contacts waiting
+            for Admin verification or approval.
+          </Text>
+        </View>
+      ) : (
+        pendingParentContacts.map((contact) => {
+          const processing =
+            processingParentId === contact.id;
+
+          const studentName =
+            `${contact.student?.user?.firstName || ""} ${
+              contact.student?.user?.lastName || ""
+            }`.trim() || "Unknown Student";
+
+          return (
+            <View
+              key={contact.id}
+              style={styles.parentCard}
+            >
+              <View style={styles.parentCardHeader}>
+                <View style={styles.parentAvatar}>
+                  <Text style={styles.parentAvatarText}>
+                    👨‍👩‍👧
+                  </Text>
+                </View>
+
+                <View style={styles.parentHeaderContent}>
+                  <Text style={styles.parentContactName}>
+                    {contact.name}
+                  </Text>
+
+                  <Text style={styles.parentRelationship}>
+                    {contact.relationship}
+                  </Text>
+                </View>
+
+                <View
+                  style={[
+                    styles.parentStatusBadge,
+                    contact.phoneVerified
+                      ? styles.parentVerifiedBadge
+                      : styles.parentPendingBadge,
+                  ]}
+                >
+                  <Text style={styles.parentStatusText}>
+                    {contact.phoneVerified
+                      ? "PHONE VERIFIED"
+                      : "PENDING"}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.parentDetailsBox}>
+                <View style={styles.parentDetailRow}>
+                  <Text style={styles.parentDetailLabel}>
+                    Student
+                  </Text>
+
+                  <Text style={styles.parentDetailValue}>
+                    {studentName}
+                  </Text>
+                </View>
+
+                <View style={styles.parentDetailRow}>
+                  <Text style={styles.parentDetailLabel}>
+                    Student Number
+                  </Text>
+
+                  <Text style={styles.parentDetailValue}>
+                    {contact.student?.studentNumber ||
+                      "N/A"}
+                  </Text>
+                </View>
+
+                <View style={styles.parentDetailRow}>
+                  <Text style={styles.parentDetailLabel}>
+                    Parent Phone
+                  </Text>
+
+                  <Text style={styles.parentDetailValue}>
+                    {contact.phone}
+                  </Text>
+                </View>
+
+                <View style={styles.parentDetailRow}>
+                  <Text style={styles.parentDetailLabel}>
+                    Email
+                  </Text>
+
+                  <Text style={styles.parentDetailValue}>
+                    {contact.email || "Not provided"}
+                  </Text>
+                </View>
+
+                <View style={styles.parentDetailRow}>
+                  <Text style={styles.parentDetailLabel}>
+                    Primary Contact
+                  </Text>
+
+                  <Text style={styles.parentDetailValue}>
+                    {contact.isPrimary ? "Yes" : "No"}
+                  </Text>
+                </View>
+
+                <View style={styles.parentDetailRow}>
+                  <Text style={styles.parentDetailLabel}>
+                    Emergency Contact
+                  </Text>
+
+                  <Text style={styles.parentDetailValue}>
+                    {contact.isEmergencyContact
+                      ? "Yes"
+                      : "No"}
+                  </Text>
+                </View>
+              </View>
+
+              {!contact.phoneVerified ? (
+                <View style={styles.parentWarningBox}>
+                  <Text style={styles.parentWarningText}>
+                    The parent's mobile number has not been
+                    OTP verified yet. This contact cannot be
+                    approved until verification is complete.
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.parentSuccessBox}>
+                  <Text style={styles.parentSuccessText}>
+                    ✓ Parent mobile number verified. This
+                    request is ready for Admin approval.
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.parentActionContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.parentRejectButton,
+                    processing && styles.disabledButton,
+                  ]}
+                  onPress={() =>
+                    handleRejectParent(contact)
+                  }
+                  disabled={processing}
+                  activeOpacity={0.8}
+                >
+                  {processing ? (
+                    <ActivityIndicator
+                      size="small"
+                      color="#DC2626"
+                    />
+                  ) : (
+                    <Text style={styles.parentRejectText}>
+                      Reject
+                    </Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.parentApproveButton,
+                    (!contact.phoneVerified ||
+                      processing) &&
+                      styles.disabledButton,
+                  ]}
+                  onPress={() =>
+                    handleApproveParent(contact)
+                  }
+                  disabled={
+                    !contact.phoneVerified ||
+                    processing
+                  }
+                  activeOpacity={0.8}
+                >
+                  {processing ? (
+                    <ActivityIndicator
+                      size="small"
+                      color="#FFFFFF"
+                    />
+                  ) : (
+                    <Text style={styles.parentApproveText}>
+                      Approve
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          );
+        })
+      )}
+
+      {/* ====================================================
           MAINTENANCE COMPLAINTS
       ==================================================== */}
 
@@ -1549,6 +2065,213 @@ const styles = StyleSheet.create({
 
   femaleText: {
     color: "#BE185D",
+  },
+
+  // ========================================================
+  // PARENT VERIFICATION
+  // ========================================================
+
+  parentSectionHeader: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 18,
+    marginTop: 4,
+    marginBottom: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+
+  parentCountBadge: {
+    minWidth: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#FCE7F3",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 10,
+  },
+
+  parentCountText: {
+    color: "#BE185D",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+
+  parentCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 16,
+
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+
+  parentCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 15,
+  },
+
+  parentAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#FCE7F3",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+
+  parentAvatarText: {
+    fontSize: 22,
+  },
+
+  parentHeaderContent: {
+    flex: 1,
+    paddingRight: 8,
+  },
+
+  parentContactName: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1E293B",
+  },
+
+  parentRelationship: {
+    fontSize: 13,
+    color: "#64748B",
+    marginTop: 3,
+  },
+
+  parentStatusBadge: {
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+
+  parentVerifiedBadge: {
+    backgroundColor: "#DCFCE7",
+  },
+
+  parentPendingBadge: {
+    backgroundColor: "#FEF3C7",
+  },
+
+  parentStatusText: {
+    fontSize: 9,
+    fontWeight: "bold",
+    color: "#166534",
+  },
+
+  parentDetailsBox: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    padding: 13,
+    marginBottom: 13,
+  },
+
+  parentDetailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 7,
+  },
+
+  parentDetailLabel: {
+    fontSize: 13,
+    color: "#64748B",
+    flex: 1,
+  },
+
+  parentDetailValue: {
+    fontSize: 13,
+    color: "#1E293B",
+    fontWeight: "600",
+    flex: 1.5,
+    textAlign: "right",
+  },
+
+  parentWarningBox: {
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+    borderRadius: 10,
+    padding: 11,
+    marginBottom: 13,
+  },
+
+  parentWarningText: {
+    fontSize: 12,
+    color: "#9A3412",
+    lineHeight: 18,
+  },
+
+  parentSuccessBox: {
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+    borderRadius: 10,
+    padding: 11,
+    marginBottom: 13,
+  },
+
+  parentSuccessText: {
+    fontSize: 12,
+    color: "#166534",
+    lineHeight: 18,
+  },
+
+  parentActionContainer: {
+    flexDirection: "row",
+    gap: 10,
+  },
+
+  parentRejectButton: {
+    flex: 1,
+    height: 48,
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+    backgroundColor: "#FEF2F2",
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  parentRejectText: {
+    color: "#DC2626",
+    fontSize: 15,
+    fontWeight: "bold",
+  },
+
+  parentApproveButton: {
+    flex: 1,
+    height: 48,
+    backgroundColor: "#16A34A",
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  parentApproveText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "bold",
   },
 
   // ========================================================

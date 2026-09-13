@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
@@ -68,6 +69,16 @@ interface ParentContact {
   email?: string | null;
   isPrimary: boolean;
   isEmergencyContact: boolean;
+  phoneVerified?: boolean;
+  phoneVerifiedAt?: string | null;
+  status?:
+    | "PENDING"
+    | "PHONE_VERIFIED"
+    | "APPROVED"
+    | "REJECTED";
+  approvedAt?: string | null;
+  approvedBy?: string | null;
+  rejectionReason?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -115,6 +126,39 @@ export default function StudentDashboard() {
 
   const [error, setError] =
     useState("");
+
+  // ========================================================
+  // PARENT CONTACT / OTP STATE
+  // ========================================================
+
+  const [showParentForm, setShowParentForm] =
+    useState(false);
+  const [showOtpForm, setShowOtpForm] =
+    useState(false);
+
+  const [parentName, setParentName] =
+    useState("");
+  const [parentRelationship, setParentRelationship] =
+    useState("");
+  const [parentPhone, setParentPhone] =
+    useState("");
+  const [parentEmail, setParentEmail] =
+    useState("");
+  const [parentIsPrimary, setParentIsPrimary] =
+    useState(false);
+  const [parentIsEmergency, setParentIsEmergency] =
+    useState(false);
+
+  const [otp, setOtp] = useState("");
+  const [parentContactId, setParentContactId] =
+    useState("");
+  const [parentOtpLoading, setParentOtpLoading] =
+    useState(false);
+
+  const [parentMessage, setParentMessage] =
+    useState("");
+  const [parentMessageType, setParentMessageType] =
+    useState<"success" | "error" | "info">("info");
 
   // ========================================================
   // FETCH LOGGED-IN STUDENT
@@ -193,6 +237,273 @@ export default function StudentDashboard() {
   useEffect(() => {
     fetchStudentProfile();
   }, []);
+
+  // ========================================================
+  // PARENT CONTACT: RESET FORM
+  // ========================================================
+
+  const resetParentForm = () => {
+    setParentName("");
+    setParentRelationship("");
+    setParentPhone("");
+    setParentEmail("");
+    setParentIsPrimary(false);
+    setParentIsEmergency(false);
+    setOtp("");
+    setParentContactId("");
+    setShowParentForm(false);
+    setShowOtpForm(false);
+    setParentMessage("");
+  };
+
+  // ========================================================
+  // PARENT CONTACT: REQUEST OTP
+  // ========================================================
+
+  const handleRequestParentContact = async () => {
+    if (
+      !parentName.trim() ||
+      !parentRelationship.trim() ||
+      !parentPhone.trim()
+    ) {
+      setParentMessageType("error");
+      setParentMessage(
+        "Please enter parent name, relationship and mobile number."
+      );
+      return;
+    }
+
+    const normalizedPhone = parentPhone
+      .trim()
+      .replace(/\s+/g, "");
+
+    if (!/^\+?[0-9]{10,15}$/.test(normalizedPhone)) {
+      setParentMessageType("error");
+      setParentMessage(
+        "Please enter a valid parent mobile number."
+      );
+      return;
+    }
+
+    try {
+      setParentOtpLoading(true);
+      setParentMessage("");
+
+      const token =
+        await AsyncStorage.getItem("token");
+
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+
+      const response = await fetch(
+        `${API_URL}/api/parent-contacts/request`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: parentName.trim(),
+            relationship:
+              parentRelationship.trim(),
+            phone: normalizedPhone,
+            email:
+              parentEmail.trim() || null,
+            isPrimary: parentIsPrimary,
+            isEmergencyContact:
+              parentIsEmergency,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message ||
+            "Failed to create parent contact request"
+        );
+      }
+
+      const createdId =
+        result.data?.parentContactId;
+
+      if (!createdId) {
+        throw new Error(
+          "No parent contact ID was returned."
+        );
+      }
+
+      setParentContactId(createdId);
+      setShowParentForm(false);
+      setShowOtpForm(true);
+      setParentMessageType("info");
+      setParentMessage(
+        "OTP sent to the parent's mobile number. Enter the 6-digit OTP."
+      );
+
+      await fetchStudentProfile();
+    } catch (err: any) {
+      console.error(
+        "Parent contact request error:",
+        err
+      );
+
+      setParentMessageType("error");
+      setParentMessage(
+        err?.message ||
+          "Failed to send parent verification OTP."
+      );
+    } finally {
+      setParentOtpLoading(false);
+    }
+  };
+
+  // ========================================================
+  // PARENT CONTACT: VERIFY OTP
+  // ========================================================
+
+  const handleVerifyParentOtp = async () => {
+    const normalizedOtp = otp.trim();
+
+    if (!parentContactId) {
+      setParentMessageType("error");
+      setParentMessage(
+        "Parent contact request not found."
+      );
+      return;
+    }
+
+    if (!/^\d{6}$/.test(normalizedOtp)) {
+      setParentMessageType("error");
+      setParentMessage(
+        "Please enter the 6-digit OTP."
+      );
+      return;
+    }
+
+    try {
+      setParentOtpLoading(true);
+      setParentMessage("");
+
+      const response = await fetch(
+        `${API_URL}/api/parent-contacts/verify-otp`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            parentContactId,
+            otp: normalizedOtp,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message ||
+            "OTP verification failed"
+        );
+      }
+
+      setShowOtpForm(false);
+      setOtp("");
+      setParentMessageType("success");
+      setParentMessage(
+        "Parent mobile number verified. Waiting for Admin approval."
+      );
+
+      await fetchStudentProfile();
+    } catch (err: any) {
+      console.error(
+        "Parent OTP verification error:",
+        err
+      );
+
+      setParentMessageType("error");
+      setParentMessage(
+        err?.message ||
+          "Failed to verify the parent OTP."
+      );
+    } finally {
+      setParentOtpLoading(false);
+    }
+  };
+
+  // ========================================================
+  // PARENT CONTACT: RESEND OTP
+  // ========================================================
+
+  const handleResendParentOtp = async () => {
+    if (!parentContactId) {
+      setParentMessageType("error");
+      setParentMessage(
+        "Parent contact request not found."
+      );
+      return;
+    }
+
+    try {
+      setParentOtpLoading(true);
+      setParentMessage("");
+
+      const token =
+        await AsyncStorage.getItem("token");
+
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+
+      const response = await fetch(
+        `${API_URL}/api/parent-contacts/resend-otp`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            parentContactId,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message ||
+            "Failed to resend OTP"
+        );
+      }
+
+      setOtp("");
+      setParentMessageType("info");
+      setParentMessage(
+        "A new OTP has been sent to the parent's mobile number."
+      );
+    } catch (err: any) {
+      console.error(
+        "Parent OTP resend error:",
+        err
+      );
+
+      setParentMessageType("error");
+      setParentMessage(
+        err?.message ||
+          "Failed to resend OTP."
+      );
+    } finally {
+      setParentOtpLoading(false);
+    }
+  };
 
   // ========================================================
   // LOGOUT
@@ -689,86 +1000,85 @@ export default function StudentDashboard() {
           PARENT / GUARDIAN CONTACTS
       ================================================== */}
 
-      <View
-        style={styles.parentCard}
-      >
-        <View
-          style={styles.parentHeader}
-        >
-          <View
-            style={styles.parentHeaderText}
-          >
-            <Text
-              style={styles.parentTitle}
-            >
+      <View style={styles.parentCard}>
+        <View style={styles.parentHeader}>
+          <View style={styles.parentHeaderText}>
+            <Text style={styles.parentTitle}>
               Parent / Guardian Contacts
             </Text>
 
-            <Text
-              style={styles.parentSubtitle}
-            >
-              Official contact information
-              maintained by hostel
-              administration
+            <Text style={styles.parentSubtitle}>
+              Add a parent and verify their mobile number.
+              Final approval is handled by Admin.
             </Text>
           </View>
 
-          <View
-            style={
-              styles.parentIconContainer
-            }
-          >
-            <Text
-              style={styles.parentIcon}
-            >
+          <View style={styles.parentIconContainer}>
+            <Text style={styles.parentIcon}>
               👨‍👩‍👧
             </Text>
           </View>
         </View>
 
-        {parentContacts.length > 0 ? (
-          parentContacts.map(
-            (contact) => (
-              <View
-                key={contact.id}
-                style={
-                  styles.parentContactBox
-                }
-              >
-                {/* CONTACT HEADER */}
+        {parentMessage ? (
+          <View
+            style={[
+              styles.parentMessage,
+              parentMessageType === "success" &&
+                styles.parentMessageSuccess,
+              parentMessageType === "error" &&
+                styles.parentMessageError,
+              parentMessageType === "info" &&
+                styles.parentMessageInfo,
+            ]}
+          >
+            <Text
+              style={[
+                styles.parentMessageText,
+                parentMessageType === "success" &&
+                  styles.parentMessageSuccessText,
+                parentMessageType === "error" &&
+                  styles.parentMessageErrorText,
+                parentMessageType === "info" &&
+                  styles.parentMessageInfoText,
+              ]}
+            >
+              {parentMessage}
+            </Text>
+          </View>
+        ) : null}
 
+        {parentContacts.length > 0 ? (
+          parentContacts.map((contact) => (
+            <View
+              key={contact.id}
+              style={styles.parentContactBox}
+            >
+              <View
+                style={styles.parentContactHeader}
+              >
                 <View
                   style={
-                    styles.parentContactHeader
+                    styles.parentContactNameContainer
                   }
                 >
-                  <View
-                    style={
-                      styles.parentContactNameContainer
-                    }
+                  <Text
+                    style={styles.parentContactName}
                   >
-                    <Text
-                      style={
-                        styles.parentContactName
-                      }
-                    >
-                      {contact.name}
-                    </Text>
+                    {contact.name}
+                  </Text>
 
-                    <Text
-                      style={
-                        styles.parentRelationship
-                      }
-                    >
-                      {contact.relationship}
-                    </Text>
-                  </View>
+                  <Text
+                    style={styles.parentRelationship}
+                  >
+                    {contact.relationship}
+                  </Text>
+                </View>
 
+                <View style={styles.badgeRow}>
                   {contact.isPrimary && (
                     <View
-                      style={
-                        styles.primaryBadge
-                      }
+                      style={styles.primaryBadge}
                     >
                       <Text
                         style={
@@ -779,116 +1089,368 @@ export default function StudentDashboard() {
                       </Text>
                     </View>
                   )}
-                </View>
 
-                {/* PHONE */}
-
-                <View
-                  style={
-                    styles.parentDetailRow
-                  }
-                >
-                  <Text
-                    style={
-                      styles.parentDetailLabel
-                    }
-                  >
-                    Phone
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.parentDetailValue
-                    }
-                  >
-                    {contact.phone ||
-                      "Not provided"}
-                  </Text>
-                </View>
-
-                {/* EMAIL */}
-
-                <View
-                  style={
-                    styles.parentDetailRow
-                  }
-                >
-                  <Text
-                    style={
-                      styles.parentDetailLabel
-                    }
-                  >
-                    Email
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.parentDetailValue
-                    }
-                  >
-                    {contact.email ||
-                      "Not provided"}
-                  </Text>
-                </View>
-
-                {/* EMERGENCY CONTACT */}
-
-                <View
-                  style={
-                    styles.parentDetailRow
-                  }
-                >
-                  <Text
-                    style={
-                      styles.parentDetailLabel
-                    }
-                  >
-                    Emergency Contact
-                  </Text>
-
-                  <Text
+                  <View
                     style={[
-                      styles.parentDetailValue,
-                      contact.isEmergencyContact &&
-                        styles.emergencyContactText,
+                      styles.statusBadge,
+                      contact.status ===
+                        "APPROVED" &&
+                        styles.approvedBadge,
+                      contact.status ===
+                        "PHONE_VERIFIED" &&
+                        styles.verifiedBadge,
+                      contact.status ===
+                        "REJECTED" &&
+                        styles.rejectedBadge,
                     ]}
                   >
-                    {contact.isEmergencyContact
-                      ? "Yes"
-                      : "No"}
-                  </Text>
+                    <Text
+                      style={[
+                        styles.statusBadgeText,
+                        contact.status ===
+                          "APPROVED" &&
+                          styles.approvedBadgeText,
+                        contact.status ===
+                          "PHONE_VERIFIED" &&
+                          styles.verifiedBadgeText,
+                        contact.status ===
+                          "REJECTED" &&
+                          styles.rejectedBadgeText,
+                      ]}
+                    >
+                      {contact.status ===
+                        "PHONE_VERIFIED"
+                        ? "Phone Verified"
+                        : contact.status ||
+                          "Pending"}
+                    </Text>
+                  </View>
                 </View>
               </View>
-            )
-          )
+
+              <View
+                style={styles.parentDetailRow}
+              >
+                <Text
+                  style={styles.parentDetailLabel}
+                >
+                  Phone
+                </Text>
+
+                <Text
+                  style={styles.parentDetailValue}
+                >
+                  {contact.phone ||
+                    "Not provided"}
+                </Text>
+              </View>
+
+              <View
+                style={styles.parentDetailRow}
+              >
+                <Text
+                  style={styles.parentDetailLabel}
+                >
+                  Email
+                </Text>
+
+                <Text
+                  style={styles.parentDetailValue}
+                >
+                  {contact.email ||
+                    "Not provided"}
+                </Text>
+              </View>
+
+              <View
+                style={styles.parentDetailRow}
+              >
+                <Text
+                  style={styles.parentDetailLabel}
+                >
+                  Emergency Contact
+                </Text>
+
+                <Text
+                  style={[
+                    styles.parentDetailValue,
+                    contact.isEmergencyContact &&
+                      styles.emergencyContactText,
+                  ]}
+                >
+                  {contact.isEmergencyContact
+                    ? "Yes"
+                    : "No"}
+                </Text>
+              </View>
+
+              {contact.status === "REJECTED" &&
+              contact.rejectionReason ? (
+                <View
+                  style={styles.rejectionBox}
+                >
+                  <Text
+                    style={styles.rejectionLabel}
+                  >
+                    Rejection reason
+                  </Text>
+
+                  <Text
+                    style={styles.rejectionText}
+                  >
+                    {contact.rejectionReason}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          ))
         ) : (
-          <View
-            style={
-              styles.noParentContainer
-            }
-          >
-            <Text
-              style={styles.noParentIcon}
-            >
+          <View style={styles.noParentContainer}>
+            <Text style={styles.noParentIcon}>
               👤
             </Text>
 
-            <Text
-              style={styles.noParentTitle}
-            >
+            <Text style={styles.noParentTitle}>
               No parent contact available
             </Text>
 
-            <Text
-              style={styles.noParentText}
-            >
-              Parent or guardian contact
-              details have not been added
-              by the hostel administration
-              yet.
+            <Text style={styles.noParentText}>
+              Add a parent or guardian below.
             </Text>
           </View>
         )}
+
+        {!showParentForm && !showOtpForm ? (
+          <TouchableOpacity
+            style={styles.addParentButton}
+            onPress={() => {
+              setParentMessage("");
+              setShowParentForm(true);
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.addParentButtonText}>
+              + Add Parent / Guardian
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+
+        {showParentForm ? (
+          <View style={styles.parentFormContainer}>
+            <Text style={styles.parentFormTitle}>
+              Add Parent / Guardian
+            </Text>
+
+            <Text style={styles.formLabel}>
+              Parent / Guardian Name
+            </Text>
+
+            <TextInput
+              style={styles.parentInput}
+              placeholder="Enter full name"
+              value={parentName}
+              onChangeText={setParentName}
+            />
+
+            <Text style={styles.formLabel}>
+              Relationship
+            </Text>
+
+            <TextInput
+              style={styles.parentInput}
+              placeholder="Father, Mother, Guardian..."
+              value={parentRelationship}
+              onChangeText={setParentRelationship}
+            />
+
+            <Text style={styles.formLabel}>
+              Mobile Number
+            </Text>
+
+            <TextInput
+              style={styles.parentInput}
+              placeholder="Enter mobile number"
+              keyboardType="phone-pad"
+              value={parentPhone}
+              onChangeText={setParentPhone}
+              maxLength={15}
+            />
+
+            <Text style={styles.formLabel}>
+              Email
+            </Text>
+
+            <TextInput
+              style={styles.parentInput}
+              placeholder="Optional email"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={parentEmail}
+              onChangeText={setParentEmail}
+            />
+
+            <TouchableOpacity
+              style={styles.checkboxRow}
+              onPress={() =>
+                setParentIsPrimary(
+                  !parentIsPrimary
+                )
+              }
+            >
+              <View
+                style={[
+                  styles.checkbox,
+                  parentIsPrimary &&
+                    styles.checkboxSelected,
+                ]}
+              >
+                {parentIsPrimary ? (
+                  <Text style={styles.checkboxTick}>
+                    ✓
+                  </Text>
+                ) : null}
+              </View>
+
+              <Text style={styles.checkboxText}>
+                Primary Contact
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.checkboxRow}
+              onPress={() =>
+                setParentIsEmergency(
+                  !parentIsEmergency
+                )
+              }
+            >
+              <View
+                style={[
+                  styles.checkbox,
+                  parentIsEmergency &&
+                    styles.checkboxSelected,
+                ]}
+              >
+                {parentIsEmergency ? (
+                  <Text style={styles.checkboxTick}>
+                    ✓
+                  </Text>
+                ) : null}
+              </View>
+
+              <Text style={styles.checkboxText}>
+                Emergency Contact
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={styles.otpInfoText}>
+              An OTP will be sent to this mobile
+              number for verification.
+            </Text>
+
+            <TouchableOpacity
+              style={[
+                styles.addParentButton,
+                parentOtpLoading &&
+                  styles.disabledButton,
+              ]}
+              onPress={
+                handleRequestParentContact
+              }
+              disabled={parentOtpLoading}
+            >
+              {parentOtpLoading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.addParentButtonText}>
+                  Send OTP
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cancelParentButton}
+              onPress={resetParentForm}
+              disabled={parentOtpLoading}
+            >
+              <Text
+                style={styles.cancelParentButtonText}
+              >
+                Cancel
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {showOtpForm ? (
+          <View style={styles.parentFormContainer}>
+            <Text style={styles.parentFormTitle}>
+              Verify Parent Mobile Number
+            </Text>
+
+            <Text style={styles.otpInstruction}>
+              Enter the 6-digit OTP sent to:
+            </Text>
+
+            <Text style={styles.otpPhone}>
+              {parentPhone}
+            </Text>
+
+            <TextInput
+              style={[
+                styles.parentInput,
+                styles.otpInput,
+              ]}
+              placeholder="Enter 6-digit OTP"
+              keyboardType="number-pad"
+              value={otp}
+              onChangeText={setOtp}
+              maxLength={6}
+            />
+
+            <TouchableOpacity
+              style={[
+                styles.addParentButton,
+                parentOtpLoading &&
+                  styles.disabledButton,
+              ]}
+              onPress={
+                handleVerifyParentOtp
+              }
+              disabled={parentOtpLoading}
+            >
+              {parentOtpLoading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.addParentButtonText}>
+                  Verify OTP
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.resendButton}
+              onPress={handleResendParentOtp}
+              disabled={parentOtpLoading}
+            >
+              <Text style={styles.resendButtonText}>
+                Resend OTP
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cancelParentButton}
+              onPress={resetParentForm}
+              disabled={parentOtpLoading}
+            >
+              <Text
+                style={styles.cancelParentButtonText}
+              >
+                Cancel
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </View>
 
       {/* ==================================================
@@ -1503,6 +2065,255 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: "#64748B",
     textAlign: "center",
+  },
+
+  parentMessage: {
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+  },
+
+  parentMessageSuccess: {
+    backgroundColor: "#F0FDF4",
+    borderColor: "#86EFAC",
+  },
+
+  parentMessageError: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FCA5A5",
+  },
+
+  parentMessageInfo: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#93C5FD",
+  },
+
+  parentMessageText: {
+    fontSize: 13,
+    lineHeight: 19,
+  },
+
+  parentMessageSuccessText: {
+    color: "#166534",
+  },
+
+  parentMessageErrorText: {
+    color: "#B91C1C",
+  },
+
+  parentMessageInfoText: {
+    color: "#1D4ED8",
+  },
+
+  badgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+  },
+
+  statusBadge: {
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+
+  approvedBadge: {
+    backgroundColor: "#DCFCE7",
+  },
+
+  verifiedBadge: {
+    backgroundColor: "#DBEAFE",
+  },
+
+  rejectedBadge: {
+    backgroundColor: "#FEE2E2",
+  },
+
+  statusBadgeText: {
+    color: "#92400E",
+    fontSize: 10,
+    fontWeight: "bold",
+  },
+
+  approvedBadgeText: {
+    color: "#166534",
+  },
+
+  verifiedBadgeText: {
+    color: "#1D4ED8",
+  },
+
+  rejectedBadgeText: {
+    color: "#B91C1C",
+  },
+
+  addParentButton: {
+    marginTop: 8,
+    backgroundColor: "#2563EB",
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 48,
+  },
+
+  addParentButtonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "bold",
+  },
+
+  parentFormContainer: {
+    marginTop: 6,
+    padding: 15,
+    borderRadius: 12,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+
+  parentFormTitle: {
+    fontSize: 17,
+    fontWeight: "bold",
+    color: "#0F172A",
+    marginBottom: 14,
+  },
+
+  formLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#334155",
+    marginBottom: 6,
+    marginTop: 9,
+  },
+
+  parentInput: {
+    height: 48,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 13,
+    fontSize: 15,
+    color: "#0F172A",
+  },
+
+  otpInput: {
+    textAlign: "center",
+    fontSize: 22,
+    fontWeight: "bold",
+    letterSpacing: 7,
+  },
+
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 13,
+  },
+
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: "#94A3B8",
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+
+  checkboxSelected: {
+    backgroundColor: "#2563EB",
+    borderColor: "#2563EB",
+  },
+
+  checkboxTick: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+
+  checkboxText: {
+    fontSize: 14,
+    color: "#334155",
+  },
+
+  otpInfoText: {
+    marginTop: 15,
+    marginBottom: 4,
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#64748B",
+  },
+
+  otpInstruction: {
+    fontSize: 13,
+    color: "#64748B",
+    textAlign: "center",
+    marginBottom: 4,
+  },
+
+  otpPhone: {
+    fontSize: 17,
+    color: "#0F172A",
+    fontWeight: "bold",
+    textAlign: "center",
+    marginBottom: 14,
+  },
+
+  resendButton: {
+    marginTop: 11,
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+
+  resendButtonText: {
+    color: "#2563EB",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
+  cancelParentButton: {
+    marginTop: 5,
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+
+  cancelParentButtonText: {
+    color: "#64748B",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+
+  disabledButton: {
+    opacity: 0.65,
+  },
+
+  rejectionBox: {
+    marginTop: 12,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+
+  rejectionLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#991B1B",
+    marginBottom: 3,
+  },
+
+  rejectionText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#7F1D1D",
   },
 
   // ========================================================

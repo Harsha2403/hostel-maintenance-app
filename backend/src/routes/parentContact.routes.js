@@ -1,6 +1,14 @@
 const express = require("express");
 
 const {
+  requestParentContact,
+  verifyParentOtp,
+  resendParentOtp,
+
+  getPendingParentContacts,
+  approveParentContact,
+  rejectParentContact,
+
   createParentContact,
   getParentContactsByStudent,
   updateParentContact,
@@ -14,7 +22,77 @@ const {
 
 const router = express.Router();
 
-// Create parent contact
+// ============================================================
+// STUDENT: REQUEST NEW PARENT CONTACT
+// ============================================================
+
+router.post(
+  "/request",
+  authenticateToken,
+  authorizeRoles("STUDENT"),
+  requestParentContact
+);
+
+// ============================================================
+// PARENT: VERIFY OTP
+//
+// No login required because the parent does not have an
+// account yet.
+// ============================================================
+
+router.post(
+  "/verify-otp",
+  verifyParentOtp
+);
+
+// ============================================================
+// STUDENT: RESEND OTP
+// ============================================================
+
+router.post(
+  "/resend-otp",
+  authenticateToken,
+  authorizeRoles("STUDENT"),
+  resendParentOtp
+);
+
+// ============================================================
+// ADMIN: VIEW PENDING PARENT CONTACT REQUESTS
+// ============================================================
+
+router.get(
+  "/pending",
+  authenticateToken,
+  authorizeRoles("ADMIN"),
+  getPendingParentContacts
+);
+
+// ============================================================
+// ADMIN: APPROVE PARENT CONTACT
+// ============================================================
+
+router.put(
+  "/:id/approve",
+  authenticateToken,
+  authorizeRoles("ADMIN"),
+  approveParentContact
+);
+
+// ============================================================
+// ADMIN: REJECT PARENT CONTACT
+// ============================================================
+
+router.put(
+  "/:id/reject",
+  authenticateToken,
+  authorizeRoles("ADMIN"),
+  rejectParentContact
+);
+
+// ============================================================
+// ADMIN / WARDEN: CREATE OFFICIAL CONTACT
+// ============================================================
+
 router.post(
   "/",
   authenticateToken,
@@ -22,7 +100,10 @@ router.post(
   createParentContact
 );
 
-// Get all contacts for a student
+// ============================================================
+// ADMIN / WARDEN: GET CONTACTS FOR STUDENT
+// ============================================================
+
 router.get(
   "/student/:studentId",
   authenticateToken,
@@ -30,7 +111,10 @@ router.get(
   getParentContactsByStudent
 );
 
-// Update parent contact
+// ============================================================
+// ADMIN / WARDEN: UPDATE
+// ============================================================
+
 router.put(
   "/:id",
   authenticateToken,
@@ -38,7 +122,10 @@ router.put(
   updateParentContact
 );
 
-// Delete parent contact
+// ============================================================
+// ADMIN ONLY: DELETE
+// ============================================================
+
 router.delete(
   "/:id",
   authenticateToken,
