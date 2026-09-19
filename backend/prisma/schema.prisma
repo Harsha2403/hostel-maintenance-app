@@ -15,6 +15,7 @@ model User {
   phone                 String?
   role                  UserRole
   isActive              Boolean               @default(true)
+  mustChangePassword    Boolean               @default(false)
   createdAt             DateTime              @default(now())
   updatedAt             DateTime              @updatedAt
   announcementsCreated  Announcement[]        @relation("AnnouncementCreator")
@@ -22,6 +23,7 @@ model User {
   handledEmergencies    Emergency[]           @relation("EmergencyHandler")
   handledHealthRequests HealthRequest[]       @relation("HealthRequestHandler")
   student               Student?
+  parentContacts        ParentContact[]       @relation("ParentContactUser")
 
   @@map("users")
 }
@@ -127,6 +129,7 @@ model Student {
 model ParentContact {
   id                 String  @id @default(uuid())
   studentId          String
+  parentUserId       String?
   name               String
   relationship       String
   phone              String
@@ -147,6 +150,7 @@ model ParentContact {
   createdAt        DateTime                       @default(now())
   updatedAt        DateTime                       @updatedAt
   student          Student                        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  parentUser       User?                          @relation("ParentContactUser", fields: [parentUserId], references: [id], onDelete: SetNull)
   notifications    ParentNotification[]
   otpVerifications ParentContactOtpVerification[]
 
@@ -386,6 +390,7 @@ model Announcement {
 
 enum UserRole {
   STUDENT
+  PARENT
   WARDEN
   MAINTENANCE_STAFF
   ADMIN

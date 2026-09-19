@@ -107,6 +107,34 @@ interface Student {
   parentContacts: ParentContact[];
 }
 
+interface HealthRequestItem {
+  id: string;
+  studentId: string;
+  requestType: string;
+  description: string;
+  priority: string;
+  status: string;
+  handledById?: string | null;
+  reportedAt?: string;
+  resolvedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface EmergencyItem {
+  id: string;
+  healthRequestId: string;
+  studentId: string;
+  severity: string;
+  description: string;
+  status: string;
+  parentNotified: boolean;
+  reportedAt?: string;
+  resolvedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 interface StudentResponse {
   success: boolean;
   data?: Student;
@@ -158,6 +186,37 @@ export default function StudentDashboard() {
   const [parentMessage, setParentMessage] =
     useState("");
   const [parentMessageType, setParentMessageType] =
+    useState<"success" | "error" | "info">("info");
+
+  // ========================================================
+  // HEALTH & EMERGENCY STATE
+  // ========================================================
+
+  const [showHealthSection, setShowHealthSection] =
+    useState(false);
+  const [healthMode, setHealthMode] =
+    useState<"HEALTH" | "EMERGENCY">("HEALTH");
+
+  const [healthRequestType, setHealthRequestType] =
+    useState("ILLNESS");
+  const [healthPriority, setHealthPriority] =
+    useState("NORMAL");
+  const [emergencySeverity, setEmergencySeverity] =
+    useState("HIGH");
+  const [healthDescription, setHealthDescription] =
+    useState("");
+
+  const [healthRequests, setHealthRequests] =
+    useState<HealthRequestItem[]>([]);
+  const [emergencies, setEmergencies] =
+    useState<EmergencyItem[]>([]);
+  const [healthLoading, setHealthLoading] =
+    useState(false);
+  const [healthDataLoading, setHealthDataLoading] =
+    useState(false);
+  const [healthMessage, setHealthMessage] =
+    useState("");
+  const [healthMessageType, setHealthMessageType] =
     useState<"success" | "error" | "info">("info");
 
   // ========================================================
@@ -236,6 +295,7 @@ export default function StudentDashboard() {
 
   useEffect(() => {
     fetchStudentProfile();
+    fetchHealthData();
   }, []);
 
   // ========================================================
@@ -502,6 +562,234 @@ export default function StudentDashboard() {
       );
     } finally {
       setParentOtpLoading(false);
+    }
+  };
+
+  // ========================================================
+  // HEALTH & EMERGENCY: LOAD MY DATA
+  // ========================================================
+
+  const fetchHealthData = async () => {
+    try {
+      setHealthDataLoading(true);
+
+      const token =
+        await AsyncStorage.getItem("token");
+
+      if (!token) {
+        return;
+      }
+
+      const [healthResponse, emergencyResponse] =
+        await Promise.all([
+          fetch(
+            `${API_URL}/api/health-requests/my-requests`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          ),
+          fetch(
+            `${API_URL}/api/emergencies/my-emergencies`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          ),
+        ]);
+
+      const healthResult =
+        await healthResponse.json();
+      const emergencyResult =
+        await emergencyResponse.json();
+
+      if (healthResponse.ok && healthResult?.success) {
+        setHealthRequests(
+          healthResult.data || []
+        );
+      }
+
+      if (
+        emergencyResponse.ok &&
+        emergencyResult?.success
+      ) {
+        setEmergencies(
+          emergencyResult.data || []
+        );
+      }
+    } catch (err) {
+      console.error(
+        "Health data error:",
+        err
+      );
+    } finally {
+      setHealthDataLoading(false);
+    }
+  };
+
+  // ========================================================
+  // HEALTH & EMERGENCY: RESET FORM
+  // ========================================================
+
+  const resetHealthForm = () => {
+    setHealthDescription("");
+    setHealthRequestType("ILLNESS");
+    setHealthPriority("NORMAL");
+    setEmergencySeverity("HIGH");
+    setHealthMessage("");
+    setShowHealthSection(false);
+  };
+
+  // ========================================================
+  // STUDENT: SUBMIT HEALTH REQUEST
+  // ========================================================
+
+  const handleSubmitHealthRequest = async () => {
+    if (!healthDescription.trim()) {
+      setHealthMessageType("error");
+      setHealthMessage(
+        "Please describe your health issue."
+      );
+      return;
+    }
+
+    try {
+      setHealthLoading(true);
+      setHealthMessage("");
+
+      const token =
+        await AsyncStorage.getItem("token");
+
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+
+      const response = await fetch(
+        `${API_URL}/api/health-requests`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            requestType: healthRequestType,
+            priority: healthPriority,
+            description:
+              healthDescription.trim(),
+          }),
+        }
+      );
+
+      const result =
+        await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message ||
+            "Failed to submit health request."
+        );
+      }
+
+      setHealthMessageType("success");
+      setHealthMessage(
+        "Health request submitted successfully."
+      );
+      setHealthDescription("");
+      setShowHealthSection(false);
+
+      await fetchHealthData();
+    } catch (err: any) {
+      console.error(
+        "Health request error:",
+        err
+      );
+
+      setHealthMessageType("error");
+      setHealthMessage(
+        err?.message ||
+          "Failed to submit health request."
+      );
+    } finally {
+      setHealthLoading(false);
+    }
+  };
+
+  // ========================================================
+  // STUDENT: REPORT EMERGENCY
+  // ========================================================
+
+  const handleSubmitEmergency = async () => {
+    if (!healthDescription.trim()) {
+      setHealthMessageType("error");
+      setHealthMessage(
+        "Please describe the emergency."
+      );
+      return;
+    }
+
+    try {
+      setHealthLoading(true);
+      setHealthMessage("");
+
+      const token =
+        await AsyncStorage.getItem("token");
+
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+
+      const response = await fetch(
+        `${API_URL}/api/emergencies`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            severity: emergencySeverity,
+            description:
+              healthDescription.trim(),
+          }),
+        }
+      );
+
+      const result =
+        await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message ||
+            "Failed to report emergency."
+        );
+      }
+
+      setHealthMessageType("success");
+      setHealthMessage(
+        "Emergency reported successfully. Hostel staff have been notified through the system."
+      );
+      setHealthDescription("");
+      setShowHealthSection(false);
+
+      await fetchHealthData();
+    } catch (err: any) {
+      console.error(
+        "Emergency report error:",
+        err
+      );
+
+      setHealthMessageType("error");
+      setHealthMessage(
+        err?.message ||
+          "Failed to report emergency."
+      );
+    } finally {
+      setHealthLoading(false);
     }
   };
 
@@ -1454,6 +1742,421 @@ export default function StudentDashboard() {
       </View>
 
       {/* ==================================================
+          HEALTH & EMERGENCY
+      ================================================== */}
+
+      <View style={styles.healthCard}>
+        <View style={styles.healthHeader}>
+          <View style={styles.healthHeaderText}>
+            <Text style={styles.healthTitle}>
+              Health & Emergency
+            </Text>
+
+            <Text style={styles.healthSubtitle}>
+              Report a health issue or an urgent emergency
+              directly to hostel administration.
+            </Text>
+          </View>
+
+          <View style={styles.healthIconContainer}>
+            <Text style={styles.healthIcon}>
+              🏥
+            </Text>
+          </View>
+        </View>
+
+        {healthMessage ? (
+          <View
+            style={[
+              styles.healthMessage,
+              healthMessageType === "success" &&
+                styles.healthMessageSuccess,
+              healthMessageType === "error" &&
+                styles.healthMessageError,
+              healthMessageType === "info" &&
+                styles.healthMessageInfo,
+            ]}
+          >
+            <Text
+              style={[
+                styles.healthMessageText,
+                healthMessageType === "success" &&
+                  styles.healthMessageSuccessText,
+                healthMessageType === "error" &&
+                  styles.healthMessageErrorText,
+                healthMessageType === "info" &&
+                  styles.healthMessageInfoText,
+              ]}
+            >
+              {healthMessage}
+            </Text>
+          </View>
+        ) : null}
+
+        {!showHealthSection ? (
+          <>
+            <View style={styles.healthActionRow}>
+              <TouchableOpacity
+                style={styles.healthPrimaryButton}
+                onPress={() => {
+                  setHealthMode("HEALTH");
+                  setHealthMessage("");
+                  setShowHealthSection(true);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.healthPrimaryButtonIcon}>
+                  🩺
+                </Text>
+                <Text style={styles.healthPrimaryButtonText}>
+                  Report Health Issue
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.emergencyButton}
+                onPress={() => {
+                  setHealthMode("EMERGENCY");
+                  setHealthMessage("");
+                  setShowHealthSection(true);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.emergencyButtonIcon}>
+                  🚨
+                </Text>
+                <Text style={styles.emergencyButtonText}>
+                  Report Emergency
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : (
+          <View style={styles.healthFormContainer}>
+            <View style={styles.healthModeRow}>
+              <TouchableOpacity
+                style={[
+                  styles.healthModeButton,
+                  healthMode === "HEALTH" &&
+                    styles.healthModeButtonActive,
+                ]}
+                onPress={() => {
+                  setHealthMode("HEALTH");
+                  setHealthMessage("");
+                }}
+              >
+                <Text
+                  style={[
+                    styles.healthModeText,
+                    healthMode === "HEALTH" &&
+                      styles.healthModeTextActive,
+                  ]}
+                >
+                  Health Issue
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.healthModeButton,
+                  healthMode === "EMERGENCY" &&
+                    styles.emergencyModeButtonActive,
+                ]}
+                onPress={() => {
+                  setHealthMode("EMERGENCY");
+                  setHealthMessage("");
+                }}
+              >
+                <Text
+                  style={[
+                    styles.healthModeText,
+                    healthMode === "EMERGENCY" &&
+                      styles.emergencyModeTextActive,
+                  ]}
+                >
+                  Emergency
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {healthMode === "HEALTH" ? (
+              <>
+                <Text style={styles.healthFormLabel}>
+                  Request Type
+                </Text>
+
+                <View style={styles.optionWrap}>
+                  {[
+                    ["ILLNESS", "Illness"],
+                    ["INJURY", "Injury"],
+                    [
+                      "MEDICAL_ASSISTANCE",
+                      "Medical Assistance",
+                    ],
+                    ["OTHER", "Other"],
+                  ].map(([value, label]) => (
+                    <TouchableOpacity
+                      key={value}
+                      style={[
+                        styles.optionChip,
+                        healthRequestType === value &&
+                          styles.optionChipActive,
+                      ]}
+                      onPress={() =>
+                        setHealthRequestType(value)
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.optionChipText,
+                          healthRequestType === value &&
+                            styles.optionChipTextActive,
+                        ]}
+                      >
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={styles.healthFormLabel}>
+                  Priority
+                </Text>
+
+                <View style={styles.optionWrap}>
+                  {[
+                    ["NORMAL", "Normal"],
+                    ["HIGH", "High"],
+                    ["EMERGENCY", "Emergency"],
+                  ].map(([value, label]) => (
+                    <TouchableOpacity
+                      key={value}
+                      style={[
+                        styles.optionChip,
+                        healthPriority === value &&
+                          styles.optionChipActive,
+                      ]}
+                      onPress={() =>
+                        setHealthPriority(value)
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.optionChipText,
+                          healthPriority === value &&
+                            styles.optionChipTextActive,
+                        ]}
+                      >
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={styles.emergencyNoticeBox}>
+                  <Text style={styles.emergencyNoticeTitle}>
+                    ⚠️ Emergency Report
+                  </Text>
+
+                  <Text style={styles.emergencyNoticeText}>
+                    Use this only for urgent medical situations.
+                    Hostel administration will handle the emergency.
+                  </Text>
+                </View>
+
+                <Text style={styles.healthFormLabel}>
+                  Severity
+                </Text>
+
+                <View style={styles.optionWrap}>
+                  {[
+                    ["HIGH", "High"],
+                    ["CRITICAL", "Critical"],
+                  ].map(([value, label]) => (
+                    <TouchableOpacity
+                      key={value}
+                      style={[
+                        styles.optionChip,
+                        styles.severityChip,
+                        emergencySeverity === value &&
+                          styles.severityChipActive,
+                      ]}
+                      onPress={() =>
+                        setEmergencySeverity(value)
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.optionChipText,
+                          emergencySeverity === value &&
+                            styles.severityChipTextActive,
+                        ]}
+                      >
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
+
+            <Text style={styles.healthFormLabel}>
+              Description
+            </Text>
+
+            <TextInput
+              style={styles.healthDescriptionInput}
+              placeholder={
+                healthMode === "EMERGENCY"
+                  ? "Describe the emergency and immediate assistance needed"
+                  : "Describe your health issue"
+              }
+              placeholderTextColor="#94A3B8"
+              value={healthDescription}
+              onChangeText={setHealthDescription}
+              multiline
+              textAlignVertical="top"
+              maxLength={1000}
+            />
+
+            <View style={styles.healthFormActionRow}>
+              <TouchableOpacity
+                style={styles.cancelHealthButton}
+                onPress={resetHealthForm}
+                disabled={healthLoading}
+              >
+                <Text style={styles.cancelHealthButtonText}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  healthMode === "EMERGENCY"
+                    ? styles.submitEmergencyButton
+                    : styles.submitHealthButton,
+                  healthLoading &&
+                    styles.healthDisabledButton,
+                ]}
+                onPress={
+                  healthMode === "EMERGENCY"
+                    ? handleSubmitEmergency
+                    : handleSubmitHealthRequest
+                }
+                disabled={healthLoading}
+              >
+                {healthLoading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.submitHealthButtonText}>
+                    {healthMode === "EMERGENCY"
+                      ? "Report Emergency"
+                      : "Submit Request"}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        <View style={styles.healthHistorySection}>
+          <View style={styles.healthHistoryHeader}>
+            <Text style={styles.healthHistoryTitle}>
+              My Health Requests
+            </Text>
+
+            <Text style={styles.healthHistoryCount}>
+              {healthRequests.length}
+            </Text>
+          </View>
+
+          {healthDataLoading ? (
+            <ActivityIndicator color="#2563EB" />
+          ) : healthRequests.length === 0 ? (
+            <Text style={styles.healthEmptyText}>
+              No health requests submitted yet.
+            </Text>
+          ) : (
+            healthRequests.slice(0, 5).map((request) => (
+              <View
+                key={request.id}
+                style={styles.healthHistoryCard}
+              >
+                <View style={styles.healthHistoryTopRow}>
+                  <Text style={styles.healthHistoryType}>
+                    {request.requestType.replaceAll("_", " ")}
+                  </Text>
+
+                  <View style={styles.healthStatusBadge}>
+                    <Text style={styles.healthStatusText}>
+                      {request.status}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={styles.healthHistoryDescription}>
+                  {request.description}
+                </Text>
+
+                <Text style={styles.healthHistoryMeta}>
+                  Priority: {request.priority}
+                </Text>
+              </View>
+            ))
+          )}
+
+          <View style={styles.healthEmergencyDivider} />
+
+          <View style={styles.healthHistoryHeader}>
+            <Text style={styles.healthHistoryTitle}>
+              My Emergencies
+            </Text>
+
+            <Text style={styles.healthHistoryCount}>
+              {emergencies.length}
+            </Text>
+          </View>
+
+          {healthDataLoading ? (
+            <ActivityIndicator color="#DC2626" />
+          ) : emergencies.length === 0 ? (
+            <Text style={styles.healthEmptyText}>
+              No emergencies reported yet.
+            </Text>
+          ) : (
+            emergencies.slice(0, 5).map((emergency) => (
+              <View
+                key={emergency.id}
+                style={styles.emergencyHistoryCard}
+              >
+                <View style={styles.healthHistoryTopRow}>
+                  <Text style={styles.emergencyHistoryType}>
+                    {emergency.severity} SEVERITY
+                  </Text>
+
+                  <View style={styles.emergencyStatusBadge}>
+                    <Text style={styles.emergencyStatusText}>
+                      {emergency.status}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={styles.healthHistoryDescription}>
+                  {emergency.description}
+                </Text>
+
+                <Text style={styles.healthHistoryMeta}>
+                  Parent notification: {emergency.parentNotified ? "Sent" : "Pending"}
+                </Text>
+              </View>
+            ))
+          )}
+        </View>
+      </View>
+
+      {/* ==================================================
           RAISE COMPLAINT
       ================================================== */}
 
@@ -2314,6 +3017,467 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     color: "#7F1D1D",
+  },
+
+  // ========================================================
+  // HEALTH & EMERGENCY
+  // ========================================================
+
+  healthCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 18,
+
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.06,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+
+  healthHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 18,
+  },
+
+  healthHeaderText: {
+    flex: 1,
+    paddingRight: 12,
+  },
+
+  healthTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#0F172A",
+  },
+
+  healthSubtitle: {
+    fontSize: 13,
+    color: "#64748B",
+    marginTop: 5,
+    lineHeight: 19,
+  },
+
+  healthIconContainer: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: "#FEF2F2",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  healthIcon: {
+    fontSize: 23,
+  },
+
+  healthMessage: {
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+  },
+
+  healthMessageSuccess: {
+    backgroundColor: "#F0FDF4",
+    borderColor: "#86EFAC",
+  },
+
+  healthMessageError: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FCA5A5",
+  },
+
+  healthMessageInfo: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#93C5FD",
+  },
+
+  healthMessageText: {
+    fontSize: 13,
+    lineHeight: 19,
+  },
+
+  healthMessageSuccessText: {
+    color: "#166534",
+  },
+
+  healthMessageErrorText: {
+    color: "#B91C1C",
+  },
+
+  healthMessageInfoText: {
+    color: "#1D4ED8",
+  },
+
+  healthActionRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+
+  healthPrimaryButton: {
+    flex: 1,
+    minHeight: 92,
+    borderRadius: 12,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 8,
+  },
+
+  healthPrimaryButtonIcon: {
+    fontSize: 24,
+    marginBottom: 7,
+  },
+
+  healthPrimaryButtonText: {
+    color: "#1D4ED8",
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+
+  emergencyButton: {
+    flex: 1,
+    minHeight: 92,
+    borderRadius: 12,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 8,
+  },
+
+  emergencyButtonIcon: {
+    fontSize: 24,
+    marginBottom: 7,
+  },
+
+  emergencyButtonText: {
+    color: "#B91C1C",
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+
+  healthFormContainer: {
+    marginTop: 2,
+    padding: 15,
+    borderRadius: 12,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+
+  healthModeRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 14,
+  },
+
+  healthModeButton: {
+    flex: 1,
+    borderRadius: 9,
+    paddingVertical: 11,
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+  },
+
+  healthModeButtonActive: {
+    backgroundColor: "#DBEAFE",
+    borderColor: "#60A5FA",
+  },
+
+  emergencyModeButtonActive: {
+    backgroundColor: "#FEE2E2",
+    borderColor: "#FCA5A5",
+  },
+
+  healthModeText: {
+    color: "#64748B",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  healthModeTextActive: {
+    color: "#1D4ED8",
+  },
+
+  emergencyModeTextActive: {
+    color: "#B91C1C",
+  },
+
+  healthFormLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#334155",
+    marginBottom: 7,
+    marginTop: 6,
+  },
+
+  optionWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 7,
+  },
+
+  optionChip: {
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+  },
+
+  optionChipActive: {
+    backgroundColor: "#2563EB",
+    borderColor: "#2563EB",
+  },
+
+  optionChipText: {
+    color: "#475569",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  optionChipTextActive: {
+    color: "#FFFFFF",
+  },
+
+  severityChip: {
+    borderColor: "#FCA5A5",
+    backgroundColor: "#FFFFFF",
+  },
+
+  severityChipActive: {
+    backgroundColor: "#DC2626",
+    borderColor: "#DC2626",
+  },
+
+  severityChipTextActive: {
+    color: "#FFFFFF",
+  },
+
+  emergencyNoticeBox: {
+    padding: 11,
+    borderRadius: 9,
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+    marginBottom: 4,
+  },
+
+  emergencyNoticeTitle: {
+    fontSize: 13,
+    fontWeight: "bold",
+    color: "#9A3412",
+    marginBottom: 3,
+  },
+
+  emergencyNoticeText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#9A3412",
+  },
+
+  healthDescriptionInput: {
+    minHeight: 120,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: "#0F172A",
+  },
+
+  healthFormActionRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 14,
+  },
+
+  cancelHealthButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  cancelHealthButtonText: {
+    color: "#475569",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
+  submitHealthButton: {
+    flex: 1.4,
+    minHeight: 48,
+    borderRadius: 10,
+    backgroundColor: "#2563EB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  submitEmergencyButton: {
+    flex: 1.4,
+    minHeight: 48,
+    borderRadius: 10,
+    backgroundColor: "#DC2626",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  submitHealthButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+
+  healthDisabledButton: {
+    opacity: 0.65,
+  },
+
+  healthHistorySection: {
+    marginTop: 18,
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
+    paddingTop: 15,
+  },
+
+  healthHistoryHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+
+  healthHistoryTitle: {
+    fontSize: 15,
+    fontWeight: "bold",
+    color: "#0F172A",
+  },
+
+  healthHistoryCount: {
+    minWidth: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#DBEAFE",
+    color: "#1D4ED8",
+    textAlign: "center",
+    lineHeight: 28,
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+
+  healthEmptyText: {
+    fontSize: 12,
+    color: "#94A3B8",
+    textAlign: "center",
+    paddingVertical: 12,
+  },
+
+  healthHistoryCard: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+
+  healthEmergencyDivider: {
+    height: 1,
+    backgroundColor: "#E2E8F0",
+    marginVertical: 10,
+  },
+
+  healthHistoryTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+  },
+
+  healthHistoryType: {
+    flex: 1,
+    color: "#1D4ED8",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+
+  emergencyHistoryType: {
+    flex: 1,
+    color: "#B91C1C",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+
+  healthStatusBadge: {
+    backgroundColor: "#DBEAFE",
+    borderRadius: 14,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+
+  healthStatusText: {
+    color: "#1D4ED8",
+    fontSize: 9,
+    fontWeight: "bold",
+  },
+
+  emergencyHistoryCard: {
+    backgroundColor: "#FFF7F7",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+
+  emergencyStatusBadge: {
+    backgroundColor: "#FEE2E2",
+    borderRadius: 14,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+
+  emergencyStatusText: {
+    color: "#B91C1C",
+    fontSize: 9,
+    fontWeight: "bold",
+  },
+
+  healthHistoryDescription: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#334155",
+  },
+
+  healthHistoryMeta: {
+    marginTop: 6,
+    fontSize: 11,
+    color: "#64748B",
   },
 
   // ========================================================

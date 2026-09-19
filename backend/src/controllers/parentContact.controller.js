@@ -615,112 +615,377 @@ const getPendingParentContacts =
     }
   };
 
-// ============================================================
-// ADMIN: APPROVE PARENT CONTACT
+  // ============================================================
+// ADMIN: GET ALL PARENT ACCOUNTS
 // ============================================================
 
-const approveParentContact =
-  async (req, res) => {
-    try {
-      const {
-        id,
-      } = req.params;
+const getAllParentContacts = async (req, res) => {
+  try {
+    const contacts = await prisma.parentContact.findMany({
+      where: {
+        status: "APPROVED",
+      },
 
-      const existingContact =
-        await prisma.parentContact.findUnique({
+      include: {
+        student: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+              },
+            },
+          },
+        },
+
+        parentUser: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            role: true,
+            isActive: true,
+          },
+        },
+      },
+
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: contacts.length,
+      data: contacts,
+    });
+  } catch (error) {
+    console.error(
+      "Get all parent contacts error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to fetch parent accounts",
+    });
+  }
+};
+
+// ============================================================
+// ADMIN: APPROVE PARENT CONTACT + CREATE PARENT ACCOUNT
+// ============================================================
+
+const approveParentContact = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const existingContact =
+      await prisma.parentContact.findUnique({
+        where: {
+          id,
+        },
+      });
+
+    if (!existingContact) {
+      return res.status(404).json({
+        success: false,
+        message: "Parent contact not found",
+      });
+    }
+
+    if (!existingContact.phoneVerified) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Parent mobile number must be verified before Admin approval.",
+      });
+    }
+
+    if (existingContact.status === "APPROVED") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Parent contact is already approved.",
+      });
+    }
+
+    // --------------------------------------------------------
+    // FIND EXISTING PARENT ACCOUNT
+    // --------------------------------------------------------
+    //
+    // First try email because it is unique in users.
+    // Then try phone, but only where role = PARENT.
+    //
+    let parentUser = null;
+
+    if (existingContact.email) {
+      parentUser =
+        await prisma.user.findUnique({
           where: {
-            id,
+            email:
+              existingContact.email
+                .trim()
+                .toLowerCase(),
           },
         });
 
-      if (!existingContact) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Parent contact not found",
-        });
-      }
-
       if (
-        !existingContact.phoneVerified
+        parentUser &&
+        parentUser.role !== "PARENT"
       ) {
-        return res.status(400).json({
+        return res.status(409).json({
           success: false,
           message:
-            "Parent mobile number must be verified before Admin approval.",
+            "The parent's email is already associated with another user account.",
         });
       }
+    }
 
-      if (
-        existingContact.status ===
-        "APPROVED"
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Parent contact is already approved.",
+    if (!parentUser && existingContact.phone) {
+      parentUser =
+        await prisma.user.findFirst({
+          where: {
+            phone: existingContact.phone,
+            role: "PARENT",
+          },
         });
-      }
+    }
 
-      const updatedContact =
-        await prisma.$transaction(
-          async (tx) => {
-            if (
-              existingContact.isPrimary
-            ) {
-              await tx.parentContact.updateMany(
-                {
-                  where: {
-                    studentId:
-                      existingContact.studentId,
-                    isPrimary: true,
-                    status: "APPROVED",
-                    NOT: {
-                      id,
-                    },
-                  },
-                  data: {
-                    isPrimary: false,
-                  },
-                }
+    // --------------------------------------------------------
+    // CREATE / REUSE PARENT ACCOUNT
+    // --------------------------------------------------------
+
+    let temporaryPassword = null;
+
+    const result =
+      await prisma.$transaction(
+        async (tx) => {
+          // --------------------------------------------------
+          // CREATE PARENT USER IF IT DOES NOT EXIST
+          // --------------------------------------------------
+
+          if (!parentUser) {
+            const generatedPassword =
+              require("crypto")
+                .randomBytes(12)
+                .toString("base64url");
+
+            const bcrypt =
+              require("bcrypt");
+
+            const hashedPassword =
+              await bcrypt.hash(
+                generatedPassword,
+                10
               );
-            }
 
-            return tx.parentContact.update({
+            parentUser =
+              await tx.user.create({
+                data: {
+                  email:
+                    existingContact.email
+                      ? existingContact.email
+                          .trim()
+                          .toLowerCase()
+                      : `parent.${existingContact.phone.replace(
+                          /\D/g,
+                          ""
+                        )}@hostel.local`,
+
+                  password:
+                    hashedPassword,
+
+                  firstName:
+                    existingContact.name
+                      .trim()
+                      .split(/\s+/)[0] ||
+                    "Parent",
+
+                  lastName:
+                    existingContact.name
+                      .trim()
+                      .split(/\s+/)
+                      .slice(1)
+                      .join(" ") ||
+                    "",
+
+                  phone:
+                    existingContact.phone,
+
+                  role: "PARENT",
+
+                  isActive: true,
+
+                  mustChangePassword:
+                    true,
+                },
+              });
+
+            temporaryPassword =
+              generatedPassword;
+          } else {
+            // Existing parent account may have
+            // been deactivated previously.
+            if (!parentUser.isActive) {
+              parentUser =
+                await tx.user.update({
+                  where: {
+                    id: parentUser.id,
+                  },
+
+                  data: {
+                    isActive: true,
+                  },
+                });
+            }
+          }
+
+          // --------------------------------------------------
+          // PRIMARY CONTACT HANDLING
+          // --------------------------------------------------
+
+          if (existingContact.isPrimary) {
+            await tx.parentContact.updateMany({
               where: {
-                id,
-              },
-              data: {
+                studentId:
+                  existingContact.studentId,
+
+                isPrimary: true,
+
                 status: "APPROVED",
-                approvedAt:
-                  new Date(),
-                approvedBy:
-                  req.user.userId,
-                rejectionReason: null,
+
+                NOT: {
+                  id,
+                },
+              },
+
+              data: {
+                isPrimary: false,
               },
             });
           }
-        );
 
-      return res.status(200).json({
-        success: true,
-        message:
-          "Parent contact approved successfully",
-        data: updatedContact,
-      });
-    } catch (error) {
-      console.error(
-        "Approve parent contact error:",
-        error
+          // --------------------------------------------------
+          // LINK CONTACT TO PARENT USER
+          // --------------------------------------------------
+
+          const updatedContact =
+            await tx.parentContact.update({
+              where: {
+                id,
+              },
+
+              data: {
+                parentUserId:
+                  parentUser.id,
+
+                status: "APPROVED",
+
+                approvedAt:
+                  new Date(),
+
+                approvedBy:
+                  req.user.userId,
+
+                rejectionReason:
+                  null,
+              },
+
+              include: {
+                student: {
+                  include: {
+                    user: {
+                      select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        email: true,
+                        phone: true,
+                      },
+                    },
+                  },
+                },
+
+                parentUser: {
+                  select: {
+                    id: true,
+                    email: true,
+                    firstName: true,
+                    lastName: true,
+                    phone: true,
+                    role: true,
+                    isActive: true,
+                    mustChangePassword: true,
+                  },
+                },
+              },
+            });
+
+          return updatedContact;
+        }
       );
 
-      return res.status(500).json({
+    // --------------------------------------------------------
+    // RESPONSE
+    // --------------------------------------------------------
+
+    return res.status(200).json({
+      success: true,
+
+      message:
+        parentUser && temporaryPassword
+          ? "Parent contact approved and parent account created successfully."
+          : "Parent contact approved and linked to the existing parent account.",
+
+      data: {
+        parentContact: result,
+
+        parentAccount: {
+          id: result.parentUser.id,
+          email: result.parentUser.email,
+          phone: result.parentUser.phone,
+          role: result.parentUser.role,
+          isActive:
+            result.parentUser.isActive,
+          mustChangePassword:
+            result.parentUser.mustChangePassword,
+        },
+
+        // IMPORTANT:
+        // This is returned only once when the account
+        // is initially created.
+        temporaryPassword,
+      },
+    });
+  } catch (error) {
+    console.error(
+      "Approve parent contact error:",
+      error
+    );
+
+    // Handle duplicate email safely
+    if (error?.code === "P2002") {
+      return res.status(409).json({
         success: false,
         message:
-          "Failed to approve parent contact",
+          "A user account with this email already exists.",
       });
     }
-  };
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to approve parent contact and create parent account.",
+    });
+  }
+};
 
 // ============================================================
 // ADMIN: REJECT PARENT CONTACT
@@ -1129,40 +1394,57 @@ const updateParentContact = async (
 // ADMIN ONLY: DELETE CONTACT
 // ============================================================
 
-const deleteParentContact = async (
-  req,
-  res
-) => {
-  try {
-    const {
-      id,
-    } = req.params;
 
-    const existingContact =
-      await prisma.parentContact.findUnique({
+const deleteParentContact = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Find the parent contact
+      const parentContact =
+        await tx.parentContact.findUnique({
+          where: {
+            id,
+          },
+        });
+
+      if (!parentContact) {
+        throw new Error(
+          "Parent contact not found."
+        );
+      }
+
+      // 2. Get the parent user ID
+      const parentUserId =
+        parentContact.parentUserId;
+
+      // 3. Delete ParentContact first
+      await tx.parentContact.delete({
         where: {
           id,
         },
       });
 
-    if (!existingContact) {
-      return res.status(404).json({
-        success: false,
-        message:
-          "Parent contact not found",
-      });
-    }
+      // 4. Delete the parent User account
+      if (parentUserId) {
+        await tx.user.delete({
+          where: {
+            id: parentUserId,
+          },
+        });
+      }
 
-    await prisma.parentContact.delete({
-      where: {
-        id,
-      },
+      return {
+        parentContactId: id,
+        parentUserId,
+      };
     });
 
     return res.status(200).json({
       success: true,
       message:
-        "Parent contact deleted successfully",
+        "Parent contact and parent user account deleted successfully.",
+      data: result,
     });
   } catch (error) {
     console.error(
@@ -1173,10 +1455,12 @@ const deleteParentContact = async (
     return res.status(500).json({
       success: false,
       message:
-        "Failed to delete parent contact",
+        error.message ||
+        "Unable to delete parent contact.",
     });
   }
 };
+
 
 // ============================================================
 // EXPORTS
@@ -1195,4 +1479,6 @@ module.exports = {
   getParentContactsByStudent,
   updateParentContact,
   deleteParentContact,
+
+  getAllParentContacts,
 };

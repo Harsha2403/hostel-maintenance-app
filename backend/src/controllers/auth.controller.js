@@ -660,19 +660,23 @@ const login = async (req, res) => {
       token,
 
       user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
+    id: user.id,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    phone: user.phone,
+    role: user.role,
+    isActive: user.isActive,
+    mustChangePassword:
+      user.mustChangePassword,
 
-        ...(user.role === "STUDENT" && {
-          studentStatus:
-            user.student?.status,
+    ...(user.role === "STUDENT" && {
+      studentStatus:
+        user.student?.status,
 
-          gender:
-            user.student?.gender,
-        }),
+      gender:
+        user.student?.gender,
+    }),
       },
     });
   } catch (error) {
@@ -689,6 +693,117 @@ const login = async (req, res) => {
   }
 };
 
+
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Current password and new password are required.",
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "New password must contain at least 8 characters.",
+      });
+    }
+
+    if (currentPassword === newPassword) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "New password must be different from the current password.",
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: {
+        id: req.user.userId,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User account not found.",
+      });
+    }
+
+    if (!user.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account is inactive.",
+      });
+    }
+
+    const bcrypt = require("bcrypt");
+
+    const passwordMatches =
+      await bcrypt.compare(
+        currentPassword,
+        user.password
+      );
+
+    if (!passwordMatches) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Current password is incorrect.",
+      });
+    }
+
+    const hashedPassword =
+      await bcrypt.hash(newPassword, 10);
+
+    const updatedUser =
+      await prisma.user.update({
+        where: {
+          id: user.id,
+        },
+        data: {
+          password: hashedPassword,
+          mustChangePassword: false,
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          role: true,
+          isActive: true,
+          mustChangePassword: true,
+        },
+      });
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Password changed successfully.",
+      data: {
+        user: updatedUser,
+      },
+    });
+  } catch (error) {
+    console.error(
+      "Change password error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to change password.",
+    });
+  }
+};
+
 // ==========================================
 // EXPORTS
 // ==========================================
@@ -698,4 +813,5 @@ module.exports = {
   createMaintenanceStaff,
   getMaintenanceStaff,
   updateMaintenanceStaffStatus,
+  changePassword,
 };

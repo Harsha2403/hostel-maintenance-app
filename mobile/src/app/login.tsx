@@ -69,25 +69,32 @@ export default function LoginScreen() {
       // ROLE-BASED NAVIGATION
       // ==========================================
 
-      if (user.role === "ADMIN") {
-        router.replace("/admin");
+if (user.role === "ADMIN") {
+  router.replace("/admin");
 
-      } else if (user.role === "STUDENT") {
-        router.replace("/student");
+} else if (user.role === "STUDENT") {
+  router.replace("/student");
 
-      } else if (
-        user.role === "MAINTENANCE_STAFF"
-      ) {
-        // Maintenance staff goes to
-        // their own dashboard first.
-        router.replace("/maintenance-home");
+} else if (
+  user.role === "MAINTENANCE_STAFF"
+) {
+  // Maintenance staff goes to
+  // their own dashboard first.
+  router.replace("/maintenance-home");
 
-      } else {
-        Alert.alert(
-          "Error",
-          "Unknown user role."
-        );
-      }
+} else if (user.role === "PARENT") {
+  if (user.mustChangePassword) {
+    router.replace("/parent-change-password");
+  } else {
+    router.replace("/parent");
+  }
+
+} else {
+  Alert.alert(
+    "Error",
+    `Unknown user role: ${user.role}`
+  );
+}
 
     } catch (error: any) {
       console.log(

@@ -6,6 +6,7 @@ const {
   createMaintenanceStaff,
   getMaintenanceStaff,
   updateMaintenanceStaffStatus,
+  changePassword,
 } = require("../controllers/auth.controller");
 
 const {
@@ -112,6 +113,12 @@ router.patch(
   authenticateToken,
   requireAdmin,
   updateMaintenanceStaffStatus
+);
+
+router.put(
+  "/change-password",
+  authenticateToken,
+  changePassword
 );
 
 // ==========================================

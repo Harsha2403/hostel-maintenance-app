@@ -6,6 +6,7 @@ const {
   resendParentOtp,
 
   getPendingParentContacts,
+  getAllParentContacts,
   approveParentContact,
   rejectParentContact,
 
@@ -65,6 +66,17 @@ router.get(
   authenticateToken,
   authorizeRoles("ADMIN"),
   getPendingParentContacts
+);
+
+// ============================================================
+// ADMIN: VIEW ALL APPROVED PARENT ACCOUNTS
+// ============================================================
+
+router.get(
+  "/all",
+  authenticateToken,
+  authorizeRoles("ADMIN"),
+  getAllParentContacts
 );
 
 // ============================================================
@@ -132,5 +144,6 @@ router.delete(
   authorizeRoles("ADMIN"),
   deleteParentContact
 );
+
 
 module.exports = router;
