@@ -197,6 +197,17 @@ export default function StudentDashboard() {
   const [healthMode, setHealthMode] =
     useState<"HEALTH" | "EMERGENCY">("HEALTH");
 
+  const [showHealthEmergencyDropdown, setShowHealthEmergencyDropdown] =
+    useState(true);
+
+  const [healthSearch, setHealthSearch] =
+    useState("");
+
+  const [showHealthRequestsDropdown, setShowHealthRequestsDropdown] =
+    useState(true);
+  const [showEmergenciesDropdown, setShowEmergenciesDropdown] =
+    useState(true);
+
   const [healthRequestType, setHealthRequestType] =
     useState("ILLNESS");
   const [healthPriority, setHealthPriority] =
@@ -914,6 +925,45 @@ export default function StudentDashboard() {
     student?.parentContacts || [];
 
   // ========================================================
+  // HEALTH & EMERGENCY SEARCH
+  // ========================================================
+
+  const normalizedHealthSearch =
+    healthSearch.trim().toLowerCase();
+
+  const filteredHealthRequests =
+    healthRequests.filter((request) => {
+      if (!normalizedHealthSearch) return true;
+
+      return [
+        request.requestType,
+        request.description,
+        request.priority,
+        request.status,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedHealthSearch);
+    });
+
+  const filteredEmergencies =
+    emergencies.filter((emergency) => {
+      if (!normalizedHealthSearch) return true;
+
+      return [
+        emergency.severity,
+        emergency.description,
+        emergency.status,
+        emergency.parentNotified ? "sent" : "pending",
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedHealthSearch);
+    });
+
+  // ========================================================
   // DASHBOARD
   // ========================================================
 
@@ -930,19 +980,33 @@ export default function StudentDashboard() {
       ================================================== */}
 
       <View style={styles.header}>
-        <Text
-          style={styles.title}
-        >
-          Student Dashboard
-        </Text>
+        <View style={styles.headerContent}>
+          <Text style={styles.brandTitle}>
+            Hostel Maintenance
+          </Text>
 
-        <Text
-          style={styles.subtitle}
+          <Text
+            style={styles.title}
+          >
+            Student Dashboard
+          </Text>
+
+          <Text
+            style={styles.subtitle}
+          >
+            Hostel Maintenance System
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={styles.headerLogoutButton}
+          onPress={handleLogout}
+          activeOpacity={0.8}
         >
-          Welcome,{" "}
-          {student?.user?.firstName ||
-            "Student"}!
-        </Text>
+          <Text style={styles.headerLogoutText}>
+            Logout
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* ==================================================
@@ -1746,7 +1810,15 @@ export default function StudentDashboard() {
       ================================================== */}
 
       <View style={styles.healthCard}>
-        <View style={styles.healthHeader}>
+        <TouchableOpacity
+          style={styles.healthHeader}
+          onPress={() =>
+            setShowHealthEmergencyDropdown(
+              !showHealthEmergencyDropdown
+            )
+          }
+          activeOpacity={0.8}
+        >
           <View style={styles.healthHeaderText}>
             <Text style={styles.healthTitle}>
               Health & Emergency
@@ -1758,11 +1830,44 @@ export default function StudentDashboard() {
             </Text>
           </View>
 
-          <View style={styles.healthIconContainer}>
-            <Text style={styles.healthIcon}>
-              🏥
+          <View style={styles.healthHeaderRight}>
+            <View style={styles.healthIconContainer}>
+              <Text style={styles.healthIcon}>
+                🏥
+              </Text>
+            </View>
+
+            <Text style={styles.healthDropdownIcon}>
+              {showHealthEmergencyDropdown ? "▲" : "▼"}
             </Text>
           </View>
+        </TouchableOpacity>
+
+        {showHealthEmergencyDropdown ? (
+          <>
+        <View style={styles.healthSearchContainer}>
+          <Text style={styles.healthSearchIcon}>
+            🔍
+          </Text>
+
+          <TextInput
+            style={styles.healthSearchInput}
+            placeholder="Search health requests or emergencies..."
+            placeholderTextColor="#94A3B8"
+            value={healthSearch}
+            onChangeText={setHealthSearch}
+          />
+
+          {healthSearch ? (
+            <TouchableOpacity
+              onPress={() => setHealthSearch("")}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.healthSearchClear}>
+                ✕
+              </Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         {healthMessage ? (
@@ -2062,98 +2167,116 @@ export default function StudentDashboard() {
         )}
 
         <View style={styles.healthHistorySection}>
-          <View style={styles.healthHistoryHeader}>
-            <Text style={styles.healthHistoryTitle}>
-              My Health Requests
+          <TouchableOpacity
+            style={styles.healthHistoryHeader}
+            onPress={() =>
+              setShowHealthRequestsDropdown(!showHealthRequestsDropdown)
+            }
+            activeOpacity={0.8}
+          >
+            <View style={styles.healthHistoryTitleRow}>
+              <Text style={styles.healthHistoryTitle}>
+                My Health Requests
+              </Text>
+              <Text style={styles.healthHistoryCount}>
+                {healthRequests.length}
+              </Text>
+            </View>
+            <Text style={styles.healthHistoryDropdownIcon}>
+              {showHealthRequestsDropdown ? "▲" : "▼"}
             </Text>
+          </TouchableOpacity>
 
-            <Text style={styles.healthHistoryCount}>
-              {healthRequests.length}
-            </Text>
-          </View>
-
-          {healthDataLoading ? (
-            <ActivityIndicator color="#2563EB" />
-          ) : healthRequests.length === 0 ? (
-            <Text style={styles.healthEmptyText}>
-              No health requests submitted yet.
-            </Text>
-          ) : (
-            healthRequests.slice(0, 5).map((request) => (
-              <View
-                key={request.id}
-                style={styles.healthHistoryCard}
-              >
-                <View style={styles.healthHistoryTopRow}>
-                  <Text style={styles.healthHistoryType}>
-                    {request.requestType.replaceAll("_", " ")}
-                  </Text>
-
-                  <View style={styles.healthStatusBadge}>
-                    <Text style={styles.healthStatusText}>
-                      {request.status}
+          {showHealthRequestsDropdown ? (
+            <>
+              {healthDataLoading ? (
+                <ActivityIndicator color="#2563EB" />
+              ) : filteredHealthRequests.length === 0 ? (
+                <Text style={styles.healthEmptyText}>
+                  {healthSearch ? "No matching health requests found." : "No health requests submitted yet."}
+                </Text>
+              ) : (
+                filteredHealthRequests.slice(0, 5).map((request) => (
+                  <View key={request.id} style={styles.healthHistoryCard}>
+                    <View style={styles.healthHistoryTopRow}>
+                      <Text style={styles.healthHistoryType}>
+                        {request.requestType.replaceAll("_", " ")}
+                      </Text>
+                      <View style={styles.healthStatusBadge}>
+                        <Text style={styles.healthStatusText}>
+                          {request.status}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.healthHistoryDescription}>
+                      {request.description}
+                    </Text>
+                    <Text style={styles.healthHistoryMeta}>
+                      Priority: {request.priority}
                     </Text>
                   </View>
-                </View>
-
-                <Text style={styles.healthHistoryDescription}>
-                  {request.description}
-                </Text>
-
-                <Text style={styles.healthHistoryMeta}>
-                  Priority: {request.priority}
-                </Text>
-              </View>
-            ))
-          )}
+                ))
+              )}
+            </>
+          ) : null}
 
           <View style={styles.healthEmergencyDivider} />
 
-          <View style={styles.healthHistoryHeader}>
-            <Text style={styles.healthHistoryTitle}>
-              My Emergencies
+          <TouchableOpacity
+            style={styles.healthHistoryHeader}
+            onPress={() =>
+              setShowEmergenciesDropdown(!showEmergenciesDropdown)
+            }
+            activeOpacity={0.8}
+          >
+            <View style={styles.healthHistoryTitleRow}>
+              <Text style={styles.healthHistoryTitle}>
+                My Emergencies
+              </Text>
+              <Text style={styles.healthHistoryCount}>
+                {emergencies.length}
+              </Text>
+            </View>
+            <Text style={styles.healthHistoryDropdownIcon}>
+              {showEmergenciesDropdown ? "▲" : "▼"}
             </Text>
+          </TouchableOpacity>
 
-            <Text style={styles.healthHistoryCount}>
-              {emergencies.length}
-            </Text>
-          </View>
-
-          {healthDataLoading ? (
-            <ActivityIndicator color="#DC2626" />
-          ) : emergencies.length === 0 ? (
-            <Text style={styles.healthEmptyText}>
-              No emergencies reported yet.
-            </Text>
-          ) : (
-            emergencies.slice(0, 5).map((emergency) => (
-              <View
-                key={emergency.id}
-                style={styles.emergencyHistoryCard}
-              >
-                <View style={styles.healthHistoryTopRow}>
-                  <Text style={styles.emergencyHistoryType}>
-                    {emergency.severity} SEVERITY
-                  </Text>
-
-                  <View style={styles.emergencyStatusBadge}>
-                    <Text style={styles.emergencyStatusText}>
-                      {emergency.status}
+          {showEmergenciesDropdown ? (
+            <>
+              {healthDataLoading ? (
+                <ActivityIndicator color="#DC2626" />
+              ) : filteredEmergencies.length === 0 ? (
+                <Text style={styles.healthEmptyText}>
+                  {healthSearch ? "No matching emergencies found." : "No emergencies reported yet."}
+                </Text>
+              ) : (
+                filteredEmergencies.slice(0, 5).map((emergency) => (
+                  <View key={emergency.id} style={styles.emergencyHistoryCard}>
+                    <View style={styles.healthHistoryTopRow}>
+                      <Text style={styles.emergencyHistoryType}>
+                        {emergency.severity} SEVERITY
+                      </Text>
+                      <View style={styles.emergencyStatusBadge}>
+                        <Text style={styles.emergencyStatusText}>
+                          {emergency.status}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.healthHistoryDescription}>
+                      {emergency.description}
+                    </Text>
+                    <Text style={styles.healthHistoryMeta}>
+                      Parent notification: {emergency.parentNotified ? "Sent" : "Pending"}
                     </Text>
                   </View>
-                </View>
-
-                <Text style={styles.healthHistoryDescription}>
-                  {emergency.description}
-                </Text>
-
-                <Text style={styles.healthHistoryMeta}>
-                  Parent notification: {emergency.parentNotified ? "Sent" : "Pending"}
-                </Text>
-              </View>
-            ))
-          )}
+                ))
+              )}
+            </>
+          ) : null}
         </View>
+      </>
+      ) : null}
       </View>
 
       {/* ==================================================
@@ -2253,6 +2376,10 @@ export default function StudentDashboard() {
           Logout
         </Text>
       </TouchableOpacity>
+
+      <Text style={styles.footerText}>
+        Hostel Maintenance System
+      </Text>
     </ScrollView>
   );
 }
@@ -2340,20 +2467,60 @@ const styles = StyleSheet.create({
   // HEADER
   // ========================================================
 
+  headerContent: {
+    flex: 1,
+    paddingRight: 12,
+  },
+
   header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#1D4ED8",
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
     marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+
+  brandTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#DBEAFE",
+    marginBottom: 4,
   },
 
   title: {
-    fontSize: 28,
+    fontSize: 27,
     fontWeight: "bold",
-    color: "#0F172A",
+    color: "#FFFFFF",
   },
 
   subtitle: {
-    fontSize: 15,
-    color: "#64748B",
-    marginTop: 7,
+    fontSize: 14,
+    color: "#DBEAFE",
+    marginTop: 6,
+  },
+
+  headerLogoutButton: {
+    backgroundColor: "#DC2626",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+
+  headerLogoutText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
   },
 
   // ========================================================
@@ -2362,7 +2529,7 @@ const styles = StyleSheet.create({
 
   profileCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 20,
     marginBottom: 18,
 
@@ -2442,7 +2609,7 @@ const styles = StyleSheet.create({
 
   roomCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 20,
     marginBottom: 18,
 
@@ -3025,7 +3192,7 @@ const styles = StyleSheet.create({
 
   healthCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 20,
     marginBottom: 18,
 
@@ -3049,6 +3216,18 @@ const styles = StyleSheet.create({
   healthHeaderText: {
     flex: 1,
     paddingRight: 12,
+  },
+
+  healthHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  healthDropdownIcon: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: "#64748B",
   },
 
   healthTitle: {
@@ -3075,6 +3254,37 @@ const styles = StyleSheet.create({
 
   healthIcon: {
     fontSize: 23,
+  },
+
+  healthSearchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 48,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    marginBottom: 14,
+  },
+
+  healthSearchIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+
+  healthSearchInput: {
+    flex: 1,
+    height: 46,
+    fontSize: 14,
+    color: "#0F172A",
+  },
+
+  healthSearchClear: {
+    fontSize: 15,
+    fontWeight: "bold",
+    color: "#64748B",
+    paddingLeft: 8,
   },
 
   healthMessage: {
@@ -3371,6 +3581,20 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
 
+  healthHistoryTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+  },
+
+  healthHistoryDropdownIcon: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "bold",
+    marginLeft: 8,
+  },
+
   healthHistoryTitle: {
     fontSize: 15,
     fontWeight: "bold",
@@ -3486,8 +3710,8 @@ const styles = StyleSheet.create({
 
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 15,
-    padding: 18,
+    borderRadius: 20,
+    padding: 20,
     marginBottom: 15,
     flexDirection: "row",
     alignItems: "center",
@@ -3540,9 +3764,19 @@ const styles = StyleSheet.create({
   logoutButton: {
     marginTop: 8,
     backgroundColor: "#DC2626",
-    padding: 16,
-    borderRadius: 10,
+    height: 54,
+    borderRadius: 12,
+    justifyContent: "center",
     alignItems: "center",
+    marginBottom: 8,
+  },
+
+  footerText: {
+    textAlign: "center",
+    fontSize: 13,
+    color: "#64748B",
+    marginTop: 10,
+    marginBottom: 20,
   },
 
   logoutText: {

@@ -9,6 +9,7 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  TextInput,
 } from "react-native";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -242,6 +243,11 @@ export default function AdminDashboard() {
 
   const [processingEmergencyId, setProcessingEmergencyId] =
     useState<string | null>(null);
+  const [parentAccountsExpanded, setParentAccountsExpanded] = useState(true);
+  const [parentAccountSearch, setParentAccountSearch] = useState("");
+  const [healthEmergencyExpanded, setHealthEmergencyExpanded] = useState(true);
+  const [healthEmergencySearch, setHealthEmergencySearch] = useState("");
+
 
   // ==========================================================
   // CHECK ADMIN SESSION
@@ -1408,6 +1414,65 @@ const handleDeleteParent = async (
       : "Female";
   };
 
+  const filteredParentAccounts = parentAccounts.filter((contact) => {
+    const studentName =
+      `${contact.student?.user?.firstName || ""} ${
+        contact.student?.user?.lastName || ""
+      }`.trim();
+
+    return [
+      contact.name,
+      contact.relationship,
+      contact.phone,
+      contact.email,
+      contact.student?.studentNumber,
+      studentName,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(parentAccountSearch.trim().toLowerCase());
+  });
+
+  const filteredHealthRequests = healthRequests.filter((request) => {
+    const studentName =
+      `${request.student?.user?.firstName || ""} ${
+        request.student?.user?.lastName || ""
+      }`.trim();
+
+    return [
+      request.requestType,
+      request.description,
+      request.priority,
+      request.status,
+      request.student?.studentNumber,
+      studentName,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(healthEmergencySearch.trim().toLowerCase());
+  });
+
+  const filteredEmergencies = emergencies.filter((emergency) => {
+    const studentName =
+      `${emergency.student?.user?.firstName || ""} ${
+        emergency.student?.user?.lastName || ""
+      }`.trim();
+
+    return [
+      emergency.severity,
+      emergency.description,
+      emergency.status,
+      emergency.student?.studentNumber,
+      studentName,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(healthEmergencySearch.trim().toLowerCase());
+  });
+
   // ==========================================================
   // UI
   // ==========================================================
@@ -1432,13 +1497,16 @@ const handleDeleteParent = async (
         <View
           style={styles.headerContent}
         >
+          <Text style={styles.brandTitle}>
+            Hostel Maintenance
+          </Text>
+
           <Text style={styles.title}>
             Admin Dashboard
           </Text>
 
           <Text style={styles.subtitle}>
-            Manage hostel maintenance
-            operations
+            Hostel Maintenance System
           </Text>
         </View>
 
@@ -2191,7 +2259,13 @@ const handleDeleteParent = async (
     PARENT ACCOUNTS
 ==================================================== */}
 
-<View style={styles.parentSectionHeader}>
+<TouchableOpacity
+  style={styles.parentSectionHeader}
+  onPress={() =>
+    setParentAccountsExpanded((current) => !current)
+  }
+  activeOpacity={0.8}
+>
   <View style={styles.sectionHeaderText}>
     <Text style={styles.sectionTitle}>
       Parent Accounts
@@ -2202,14 +2276,34 @@ const handleDeleteParent = async (
     </Text>
   </View>
 
-  <View style={styles.parentCountBadge}>
-    <Text style={styles.parentCountText}>
-      {parentAccounts.length}
+  <View style={styles.parentHeaderRight}>
+    <View style={styles.parentCountBadge}>
+      <Text style={styles.parentCountText}>
+        {parentAccounts.length}
+      </Text>
+    </View>
+
+    <Text style={styles.dropdownArrow}>
+      {parentAccountsExpanded ? "▲" : "▼"}
     </Text>
   </View>
-</View>
+</TouchableOpacity>
 
-{loadingParentAccounts ? (
+{parentAccountsExpanded && (
+  <>
+    <View style={styles.searchContainer}>
+      <TextInput
+        style={styles.searchInput}
+        value={parentAccountSearch}
+        onChangeText={setParentAccountSearch}
+        placeholder="Search parent accounts..."
+        placeholderTextColor="#94A3B8"
+        autoCapitalize="none"
+        clearButtonMode="while-editing"
+      />
+    </View>
+
+    {loadingParentAccounts ? (
   <View style={styles.loadingCard}>
     <ActivityIndicator
       size="large"
@@ -2238,7 +2332,7 @@ const handleDeleteParent = async (
     </Text>
   </View>
 ) : (
-  parentAccounts.map((contact) => {
+  filteredParentAccounts.map((contact) => {
     const processing =
       processingParentId === contact.id;
 
@@ -2396,12 +2490,19 @@ const handleDeleteParent = async (
   })
 )}
 
-
-      {/* ====================================================
+  </>
+)}
+{/* ====================================================
           HEALTH & EMERGENCY
       ==================================================== */}
 
-      <View style={styles.sectionHeader}>
+      <TouchableOpacity
+        style={styles.sectionHeader}
+        onPress={() =>
+          setHealthEmergencyExpanded((current) => !current)
+        }
+        activeOpacity={0.8}
+      >
         <View style={styles.sectionHeaderText}>
           <Text style={styles.sectionTitle}>
             Health & Emergency
@@ -2413,26 +2514,46 @@ const handleDeleteParent = async (
           </Text>
         </View>
 
-        <View style={styles.healthCountRow}>
-          <View style={styles.healthCountBadge}>
-            <Text style={styles.healthCountText}>
-              {healthRequests.filter(
-                (item) => item.status !== "CLOSED"
-              ).length}
-            </Text>
+        <View style={styles.healthHeaderRight}>
+          <View style={styles.healthCountRow}>
+            <View style={styles.healthCountBadge}>
+              <Text style={styles.healthCountText}>
+                {healthRequests.filter(
+                  (item) => item.status !== "CLOSED"
+                ).length}
+              </Text>
+            </View>
+
+            <View style={styles.emergencyCountBadge}>
+              <Text style={styles.emergencyCountText}>
+                {emergencies.filter(
+                  (item) => item.status !== "CLOSED"
+                ).length}
+              </Text>
+            </View>
           </View>
 
-          <View style={styles.emergencyCountBadge}>
-            <Text style={styles.emergencyCountText}>
-              {emergencies.filter(
-                (item) => item.status !== "CLOSED"
-              ).length}
-            </Text>
-          </View>
+          <Text style={styles.dropdownArrow}>
+            {healthEmergencyExpanded ? "▲" : "▼"}
+          </Text>
         </View>
-      </View>
+      </TouchableOpacity>
 
-      {loadingHealthEmergency ? (
+      {healthEmergencyExpanded && (
+        <>
+          <View style={styles.searchContainer}>
+            <TextInput
+              style={styles.searchInput}
+              value={healthEmergencySearch}
+              onChangeText={setHealthEmergencySearch}
+              placeholder="Search health requests and emergencies..."
+              placeholderTextColor="#94A3B8"
+              autoCapitalize="none"
+              clearButtonMode="while-editing"
+            />
+          </View>
+
+          {loadingHealthEmergency ? (
         <View style={styles.loadingCard}>
           <ActivityIndicator
             size="large"
@@ -2444,7 +2565,7 @@ const handleDeleteParent = async (
         </View>
       ) : (
         <>
-          {emergencies.length > 0 && (
+          {filteredEmergencies.length > 0 && (
             <View style={styles.emergencyAlertHeader}>
               <Text style={styles.emergencyAlertTitle}>
                 🚨 Emergency Incidents
@@ -2455,7 +2576,7 @@ const handleDeleteParent = async (
             </View>
           )}
 
-          {emergencies.length === 0 ? (
+          {filteredEmergencies.length === 0 ? (
             <View style={styles.emptyHealthCard}>
               <Text style={styles.emptyHealthIcon}>
                 ✓
@@ -2468,7 +2589,7 @@ const handleDeleteParent = async (
               </Text>
             </View>
           ) : (
-            emergencies.map((emergency) => {
+            filteredEmergencies.map((emergency) => {
               const processing =
                 processingEmergencyId === emergency.id;
 
@@ -2625,7 +2746,7 @@ const handleDeleteParent = async (
             </Text>
           </View>
 
-          {healthRequests.length === 0 ? (
+          {filteredHealthRequests.length === 0 ? (
             <View style={styles.emptyHealthCard}>
               <Text style={styles.emptyHealthIcon}>
                 ✓
@@ -2638,7 +2759,7 @@ const handleDeleteParent = async (
               </Text>
             </View>
           ) : (
-            healthRequests.map((request) => {
+            filteredHealthRequests.map((request) => {
               const processing =
                 processingHealthId === request.id;
 
@@ -2763,7 +2884,9 @@ const handleDeleteParent = async (
         </>
       )}
 
-      {/* ====================================================
+        </>
+      )}
+{/* ====================================================
           MAINTENANCE COMPLAINTS
       ==================================================== */}
 
@@ -2980,6 +3103,10 @@ const handleDeleteParent = async (
         </Text>
       </TouchableOpacity>
 
+      <Text style={styles.footerText}>
+        Hostel Maintenance
+      </Text>
+
     </ScrollView>
   );
 }
@@ -3009,25 +3136,44 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 25,
+    alignItems: "center",
+    backgroundColor: "#1D4ED8",
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
   },
 
   headerContent: {
     flex: 1,
-    paddingRight: 15,
+    paddingRight: 12,
+  },
+
+  brandTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#DBEAFE",
+    marginBottom: 4,
   },
 
   title: {
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: "bold",
-    color: "#1E293B",
-    marginBottom: 8,
+    color: "#FFFFFF",
+    marginBottom: 6,
   },
 
   subtitle: {
-    fontSize: 16,
-    color: "#64748B",
+    fontSize: 15,
+    color: "#DBEAFE",
   },
 
   // ========================================================
@@ -3035,15 +3181,15 @@ const styles = StyleSheet.create({
   // ========================================================
 
   logoutButton: {
-    backgroundColor: "#FEE2E2",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    backgroundColor: "#DC2626",
+    paddingHorizontal: 18,
+    paddingVertical: 12,
     borderRadius: 10,
   },
 
   logoutText: {
-    color: "#DC2626",
-    fontSize: 14,
+    color: "#FFFFFF",
+    fontSize: 15,
     fontWeight: "700",
   },
 
@@ -3053,8 +3199,8 @@ const styles = StyleSheet.create({
 
   sectionHeader: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 18,
+    borderRadius: 20,
+    padding: 20,
     marginBottom: 16,
     flexDirection: "row",
     justifyContent: "space-between",
@@ -3110,7 +3256,7 @@ const styles = StyleSheet.create({
 
   loadingCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 35,
     marginBottom: 20,
     alignItems: "center",
@@ -3128,7 +3274,7 @@ const styles = StyleSheet.create({
 
   emptyCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 30,
     marginBottom: 20,
     alignItems: "center",
@@ -3170,8 +3316,8 @@ const styles = StyleSheet.create({
 
   studentCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 18,
+    borderRadius: 20,
+    padding: 20,
     marginBottom: 16,
 
     shadowColor: "#000",
@@ -3306,6 +3452,39 @@ const styles = StyleSheet.create({
   // HEALTH & EMERGENCY
   // ========================================================
 
+  parentHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  healthHeaderRight: {
+    alignItems: "flex-end",
+    justifyContent: "center",
+    gap: 8,
+  },
+
+  dropdownArrow: {
+    fontSize: 12,
+    color: "#2563EB",
+    fontWeight: "bold",
+  },
+
+  searchContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+
+  searchInput: {
+    height: 46,
+    fontSize: 14,
+    color: "#1E293B",
+  },
+
   healthCountRow: {
     flexDirection: "row",
     gap: 8,
@@ -3366,8 +3545,8 @@ const styles = StyleSheet.create({
 
   emergencyCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 18,
+    borderRadius: 20,
+    padding: 20,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: "#FECACA",
@@ -3383,8 +3562,8 @@ const styles = StyleSheet.create({
 
   healthCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 18,
+    borderRadius: 20,
+    padding: 20,
     marginBottom: 16,
     shadowColor: "#000",
     shadowOffset: {
@@ -3671,8 +3850,8 @@ const styles = StyleSheet.create({
 
   parentCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 18,
+    borderRadius: 20,
+    padding: 20,
     marginBottom: 16,
 
     shadowColor: "#000",
@@ -3902,8 +4081,8 @@ parentDeleteText: {
 
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 18,
+    borderRadius: 20,
+    padding: 20,
     marginBottom: 16,
     flexDirection: "row",
     alignItems: "center",
@@ -3961,8 +4140,8 @@ parentDeleteText: {
   // ========================================================
 
   infoCard: {
-    backgroundColor: "#EFF6FF",
-    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
     padding: 20,
     marginTop: 10,
     marginBottom: 20,
@@ -3988,14 +4167,24 @@ parentDeleteText: {
   logoutBottomButton: {
     backgroundColor: "#DC2626",
     borderRadius: 12,
-    paddingVertical: 15,
+    height: 54,
+    justifyContent: "center",
     alignItems: "center",
-    marginTop: 5,
+    marginTop: 8,
+    marginBottom: 8,
   },
 
   logoutBottomText: {
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "bold",
+  },
+
+  footerText: {
+    textAlign: "center",
+    fontSize: 13,
+    color: "#64748B",
+    marginTop: 10,
+    marginBottom: 20,
   },
 });

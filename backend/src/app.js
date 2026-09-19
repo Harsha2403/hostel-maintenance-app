@@ -18,6 +18,8 @@ const complaintRoutes = require("./routes/complaint.routes");
 const healthRoutes = require("./routes/health.routes");
 const emergencyRoutes = require("./routes/emergency.routes");
 
+const parentRoutes = require("./routes/parent.routes");
+
 const app = express();
 
 app.use(cors());
@@ -54,14 +56,9 @@ app.use("/api/room-allocations", roomAllocationRoutes);
 app.use("/api/complaint-categories", complaintCategoryRoutes);
 app.use("/api/complaints", complaintRoutes);
 
-app.use(
-  "/api/health-requests",
-  healthRoutes
-);
+app.use("/api/health-requests", healthRoutes);
+app.use("/api/emergencies", emergencyRoutes);
 
-app.use(
-  "/api/emergencies",
-  emergencyRoutes
-);
+app.use("/api/parent", parentRoutes);
 
 module.exports = app;
