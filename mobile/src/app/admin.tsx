@@ -2886,6 +2886,40 @@ const handleDeleteParent = async (
 
         </>
       )}
+
+{/* ====================================================
+          ANNOUNCEMENTS
+      ==================================================== */}
+
+<TouchableOpacity
+  style={styles.card}
+  onPress={() =>
+    router.push("/announcements")
+  }
+  activeOpacity={0.8}
+>
+  <View style={styles.iconBox}>
+    <Text style={styles.icon}>
+      📢
+    </Text>
+  </View>
+
+  <View style={styles.cardContent}>
+    <Text style={styles.cardTitle}>
+      Announcements
+    </Text>
+
+    <Text style={styles.cardDescription}>
+      Create and manage announcements for
+      students and parents.
+    </Text>
+  </View>
+
+  <Text style={styles.arrow}>
+    →
+  </Text>
+</TouchableOpacity>
+
 {/* ====================================================
           MAINTENANCE COMPLAINTS
       ==================================================== */}

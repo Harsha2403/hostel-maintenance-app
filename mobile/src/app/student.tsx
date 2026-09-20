@@ -135,6 +135,17 @@ interface EmergencyItem {
   updatedAt?: string;
 }
 
+interface Announcement {
+  id: string;
+  title: string;
+  message: string;
+  audience: string;
+  priority: string;
+  isActive: boolean;
+  expiresAt?: string | null;
+  createdAt?: string;
+}
+
 interface StudentResponse {
   success: boolean;
   data?: Student;
@@ -231,6 +242,74 @@ export default function StudentDashboard() {
     useState<"success" | "error" | "info">("info");
 
   // ========================================================
+  // ANNOUNCEMENTS STATE
+  // ========================================================
+
+  const [announcements, setAnnouncements] =
+    useState<Announcement[]>([]);
+
+  const [announcementLoading, setAnnouncementLoading] =
+    useState(false);
+
+  const [announcementSearch, setAnnouncementSearch] =
+    useState("");
+
+  const [showAnnouncementsDropdown, setShowAnnouncementsDropdown] =
+    useState(false);
+
+  // ========================================================
+  // ANNOUNCEMENTS: LOAD STUDENT ANNOUNCEMENTS
+  // ========================================================
+
+  const fetchAnnouncements = async () => {
+    try {
+      setAnnouncementLoading(true);
+
+      const token =
+        await AsyncStorage.getItem("token");
+
+      if (!token) {
+        return;
+      }
+
+      const response = await fetch(
+        `${API_URL}/api/announcements/student`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message ||
+            "Failed to fetch announcements."
+        );
+      }
+
+      setAnnouncements(
+        Array.isArray(result.data)
+          ? result.data
+          : []
+      );
+    } catch (err) {
+      console.error(
+        "Announcements error:",
+        err
+      );
+
+      setAnnouncements([]);
+    } finally {
+      setAnnouncementLoading(false);
+    }
+  };
+
+  // ========================================================
   // FETCH LOGGED-IN STUDENT
   // ========================================================
 
@@ -307,6 +386,7 @@ export default function StudentDashboard() {
   useEffect(() => {
     fetchStudentProfile();
     fetchHealthData();
+    fetchAnnouncements();
   }, []);
 
   // ========================================================
@@ -961,6 +1041,31 @@ export default function StudentDashboard() {
         .join(" ")
         .toLowerCase()
         .includes(normalizedHealthSearch);
+    });
+
+  // ========================================================
+  // ANNOUNCEMENTS SEARCH
+  // ========================================================
+
+  const normalizedAnnouncementSearch =
+    announcementSearch.trim().toLowerCase();
+
+  const filteredAnnouncements =
+    announcements.filter((announcement) => {
+      if (!normalizedAnnouncementSearch) {
+        return true;
+      }
+
+      return [
+        announcement.title,
+        announcement.message,
+        announcement.priority,
+        announcement.audience,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedAnnouncementSearch);
     });
 
   // ========================================================
@@ -2277,6 +2382,196 @@ export default function StudentDashboard() {
         </View>
       </>
       ) : null}
+      </View>
+
+      {/* ==================================================
+          ANNOUNCEMENTS
+      ================================================== */}
+
+      <View style={styles.announcementCard}>
+
+        <TouchableOpacity
+          style={styles.announcementHeader}
+          onPress={() =>
+            setShowAnnouncementsDropdown(
+              !showAnnouncementsDropdown
+            )
+          }
+          activeOpacity={0.8}
+        >
+          <View style={styles.announcementHeaderText}>
+
+            <View style={styles.announcementTitleRow}>
+
+              <Text style={styles.announcementTitle}>
+                Announcements
+              </Text>
+
+              <View style={styles.announcementCountBadge}>
+                <Text style={styles.announcementCountText}>
+                  {announcements.length}
+                </Text>
+              </View>
+
+            </View>
+
+            <Text style={styles.announcementSubtitle}>
+              Important updates from hostel administration.
+            </Text>
+
+          </View>
+
+          <View style={styles.announcementHeaderRight}>
+
+            <View style={styles.announcementIconContainer}>
+              <Text style={styles.announcementIcon}>
+                📢
+              </Text>
+            </View>
+
+            <Text style={styles.announcementDropdownIcon}>
+              {showAnnouncementsDropdown ? "▲" : "▼"}
+            </Text>
+
+          </View>
+        </TouchableOpacity>
+
+        {showAnnouncementsDropdown ? (
+          <View style={styles.announcementContent}>
+
+            <View style={styles.announcementSearchContainer}>
+
+              <Text style={styles.announcementSearchIcon}>
+                🔍
+              </Text>
+
+              <TextInput
+                style={styles.announcementSearchInput}
+                placeholder="Search announcements..."
+                placeholderTextColor="#94A3B8"
+                value={announcementSearch}
+                onChangeText={setAnnouncementSearch}
+              />
+
+              {announcementSearch ? (
+                <TouchableOpacity
+                  onPress={() =>
+                    setAnnouncementSearch("")
+                  }
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.announcementSearchClear}>
+                    ✕
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+
+            </View>
+
+            {announcementLoading ? (
+              <View style={styles.announcementLoading}>
+
+                <ActivityIndicator color="#2563EB" />
+
+                <Text style={styles.announcementLoadingText}>
+                  Loading announcements...
+                </Text>
+
+              </View>
+            ) : filteredAnnouncements.length === 0 ? (
+              <View style={styles.announcementEmpty}>
+
+                <Text style={styles.announcementEmptyIcon}>
+                  📭
+                </Text>
+
+                <Text style={styles.announcementEmptyTitle}>
+                  No announcements
+                </Text>
+
+                <Text style={styles.announcementEmptyText}>
+                  There are no announcements available
+                  for you right now.
+                </Text>
+
+              </View>
+            ) : (
+              filteredAnnouncements.map(
+                (announcement) => (
+                  <View
+                    key={announcement.id}
+                    style={styles.announcementItem}
+                  >
+
+                    <View style={styles.announcementItemHeader}>
+
+                      <Text
+                        style={styles.announcementItemTitle}
+                      >
+                        {announcement.title ||
+                          "Announcement"}
+                      </Text>
+
+                      <View
+                        style={[
+                          styles.announcementPriorityBadge,
+                          announcement.priority ===
+                            "URGENT" &&
+                            styles.announcementUrgentBadge,
+                          announcement.priority ===
+                            "IMPORTANT" &&
+                            styles.announcementImportantBadge,
+                        ]}
+                      >
+                        <Text
+                          style={
+                            styles.announcementPriorityText
+                          }
+                        >
+                          {announcement.priority ||
+                            "NORMAL"}
+                        </Text>
+                      </View>
+
+                    </View>
+
+                    <Text
+                      style={styles.announcementMessage}
+                    >
+                      {announcement.message}
+                    </Text>
+
+                    <View
+                      style={styles.announcementMetaRow}
+                    >
+
+                      <Text
+                        style={styles.announcementAudience}
+                      >
+                        Audience:{" "}
+                        {announcement.audience}
+                      </Text>
+
+                      <Text
+                        style={styles.announcementDate}
+                      >
+                        {announcement.createdAt
+                          ? new Date(
+                              announcement.createdAt
+                            ).toLocaleDateString()
+                          : ""}
+                      </Text>
+
+                    </View>
+
+                  </View>
+                )
+              )
+            )}
+
+          </View>
+        ) : null}
+
       </View>
 
       {/* ==================================================
@@ -3702,6 +3997,241 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 11,
     color: "#64748B",
+  },
+
+  // ========================================================
+  // ANNOUNCEMENTS
+  // ========================================================
+
+  announcementCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 18,
+
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.06,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+
+  announcementHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  announcementHeaderText: {
+    flex: 1,
+    paddingRight: 12,
+  },
+
+  announcementTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  announcementTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#0F172A",
+  },
+
+  announcementCountBadge: {
+    minWidth: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#2563EB",
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 10,
+    paddingHorizontal: 7,
+  },
+
+  announcementCountText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+
+  announcementSubtitle: {
+    fontSize: 13,
+    color: "#64748B",
+    marginTop: 5,
+    lineHeight: 19,
+  },
+
+  announcementHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  announcementIconContainer: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: "#EFF6FF",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  announcementIcon: {
+    fontSize: 23,
+  },
+
+  announcementDropdownIcon: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: "#64748B",
+  },
+
+  announcementContent: {
+    marginTop: 18,
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
+    paddingTop: 15,
+  },
+
+  announcementSearchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 48,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    marginBottom: 14,
+  },
+
+  announcementSearchIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+
+  announcementSearchInput: {
+    flex: 1,
+    height: 46,
+    fontSize: 14,
+    color: "#0F172A",
+  },
+
+  announcementSearchClear: {
+    fontSize: 15,
+    fontWeight: "bold",
+    color: "#64748B",
+    paddingLeft: 8,
+  },
+
+  announcementLoading: {
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+
+  announcementLoadingText: {
+    marginTop: 8,
+    fontSize: 13,
+    color: "#64748B",
+  },
+
+  announcementEmpty: {
+    alignItems: "center",
+    paddingVertical: 22,
+  },
+
+  announcementEmptyIcon: {
+    fontSize: 34,
+    marginBottom: 8,
+  },
+
+  announcementEmptyTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#0F172A",
+  },
+
+  announcementEmptyText: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 19,
+    color: "#64748B",
+    textAlign: "center",
+  },
+
+  announcementItem: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+
+  announcementItemHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 9,
+  },
+
+  announcementItemTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#0F172A",
+  },
+
+  announcementPriorityBadge: {
+    backgroundColor: "#DBEAFE",
+    borderRadius: 14,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+
+  announcementImportantBadge: {
+    backgroundColor: "#FEF3C7",
+  },
+
+  announcementUrgentBadge: {
+    backgroundColor: "#FEE2E2",
+  },
+
+  announcementPriorityText: {
+    fontSize: 9,
+    fontWeight: "bold",
+    color: "#1D4ED8",
+  },
+
+  announcementMessage: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: "#334155",
+  },
+
+  announcementMetaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
+  },
+
+  announcementAudience: {
+    fontSize: 11,
+    color: "#64748B",
+    fontWeight: "600",
+  },
+
+  announcementDate: {
+    fontSize: 11,
+    color: "#94A3B8",
   },
 
   // ========================================================

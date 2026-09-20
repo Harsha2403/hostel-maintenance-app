@@ -20,6 +20,8 @@ const emergencyRoutes = require("./routes/emergency.routes");
 
 const parentRoutes = require("./routes/parent.routes");
 
+const announcementRoutes = require("./routes/announcement.routes");
+
 const app = express();
 
 app.use(cors());
@@ -60,5 +62,7 @@ app.use("/api/health-requests", healthRoutes);
 app.use("/api/emergencies", emergencyRoutes);
 
 app.use("/api/parent", parentRoutes);
+
+app.use("/api/announcements", announcementRoutes);
 
 module.exports = app;
